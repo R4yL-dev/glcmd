@@ -1,44 +1,57 @@
 # glcmd
 
-**Version**: 0.1<br>
-**Date**: 04.05.25
+**Version**: 0.1
+**Date**: 2025-05-04
 
-`glcmd` is a small command-line tool that interoperates with the libreview API to retrieve blood glucose information from a LibreLinkUp account.
+`glcmd` is a small command-line tool that queries the LibreView API to retrieve blood glucose information from a LibreLinkUp (follower) account.
 
-## Prerequisites
+It displays the latest glucose value directly in your terminal.
 
-- go 1.24.1
+## ✨ Features
 
-> I haven't tested on anything other than Linux. `make install` puts the binary in `/usr/local/bin`, so I don't know if the folder is present on Mac. If not, you can `make` and paste the binary there into `bin/` wherever you like.
+- Retrieve the current glucose measurement via the LibreLinkUp API.
+- Display it in the terminal.
 
-## Setup
+## 📦 Prerequisites
 
-To enable `glcmd` to connect to your LibreLinkUp account, you need to add 2 environment variables: `GL_EMAIL` and `GL_PASSWORD`.
+- **Go** 1.24.1
 
-For `glcmd` to work, you need to give it the credentials of a follower account. That is, not your main account (on the libre3 application, for example), but a follower account that must be added as an associate device in the libre3 application. Using the credentials of a patient account directly does not work.
+> 📌 This project has only been tested on **Linux** for now.
+> `make install` places the binary in `/usr/local/bin`. If this folder does not exist on macOS, simply compile it with `make` and move the binary to a folder included in your `PATH`.
 
-## Install
+## ⚙️ Setup
+
+Before using `glcmd`, you need to set two environment variables: `GL_EMAIL` and `GL_PASSWORD`.
+
+These credentials must belong to a **follower account** — meaning an associated device account (not your primary patient account from the Libre 3 app).
+The follower account must be added as an associated device in the Libre 3 application.
+Using direct patient account credentials will not work.
+
+## 🚀 Install & Usage
 
 ```bash
-> export GL_EMAIL='<email>'
-> export GL_PASSWORD='<password>'
-> git clone git@github.com:R4yL-dev/glcmd.git
-> cd glcmd
-> make
-> ./bin/glcmd
-🩸 7.7(mmo/L) 🡒
+export GL_EMAIL='<email>'
+export GL_PASSWORD='<password>'
+git clone https://github.com/R4yL-dev/glcmd.git
+cd glcmd
+make
+./bin/glcmd
+🩸 7.7(mmol/L) 🡒
 ```
 
-## TODO
+## 📌 TODO
 
-### ToJSON()
+- **US format**: add a flag to display glucose in US format.
+- **ToJSON()**: add an option to generate JSON output on stdout instead of classic text display.
+- **ASCIIGraph**: add the ability to display an ASCII graph of recent measurements in the terminal.
+- **Watcher**: implement a continuous monitoring mode, polling the API at a defined interval and logging the measurements to a file or database.
 
-Add the possibility of generating json on standard output rather than the classic glucose display.
+## 📄 License
 
-### ASCIIGraph
+This project is licensed under the [MIT](LICENSE) license.
 
-Adds the possibility of displaying the measurement graph in the terminal as an ascii graph.
+## ⚠️ Disclaimer
 
-### Watcher
-
-`glcmd` simply connects to the libreview api to retrieve the current measurement. I'd like to add a watcher in the future. It should be able to run in infinity and retrieve measurements every defined period of time. This would make it possible, for example, to create a database or text file to track measurements over time.
+This tool is provided for informational and personal use only.
+It is not a certified medical device and should not be used to make health-related decisions.
+Use it at your own risk.
