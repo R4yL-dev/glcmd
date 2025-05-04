@@ -3,7 +3,13 @@
 **Version**: 0.1<br>
 **Date**: 04.05.25
 
-`glcmd` is a small command-line tool that interoperates with the libreview API to retrieve blood glucose information from a LibreLinkUp account,
+`glcmd` is a small command-line tool that interoperates with the libreview API to retrieve blood glucose information from a LibreLinkUp account.
+
+## Prerequisites
+
+- go 1.24.1
+
+> I haven't tested on anything other than Linux. `make install` puts the binary in `/usr/local/bin`, so I don't know if the folder is present on Mac. If not, you can `make` and paste the binary there into `bin/` wherever you like.
 
 ## Setup
 
@@ -14,6 +20,8 @@ For `glcmd` to work, you need to give it the credentials of a follower account. 
 ## Install
 
 ```bash
+> export GL_EMAIL='<email>'
+> export GL_PASSWORD='<password>'
 > git clone git@github.com:R4yL-dev/glcmd.git
 > cd glcmd
 > make
