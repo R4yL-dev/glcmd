@@ -13,7 +13,7 @@
 
 ## Setup
 
-To enable glcmd to connect to your LibreLinkUp account, you need to add 2 environment variables: `GL_EMAIL` and `GL_PASSWORD`.
+To enable `glcmd` to connect to your LibreLinkUp account, you need to add 2 environment variables: `GL_EMAIL` and `GL_PASSWORD`.
 
 For `glcmd` to work, you need to give it the credentials of a follower account. That is, not your main account (on the libre3 application, for example), but a follower account that must be added as an associate device in the libre3 application. Using the credentials of a patient account directly does not work.
 
