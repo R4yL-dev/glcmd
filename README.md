@@ -1,1 +1,28 @@
 # glcmd
+
+**Version**: 0.1<br>
+**Date**: 04.05.25
+
+`glcmd` is a small command-line tool that interoperates with the libreview API to retrieve blood glucose information from a LibreLinkUp account,
+
+## Setup
+
+To enable glcmd to connect to your LibreLinkUp account, you need to add 2 environment variables: `GL_EMAIL` and `GL_PASSWORD`.
+
+For `glcmd` to work, you need to give it the credentials of a follower account. That is, not your main account (on the libre3 application, for example), but a follower account that must be added as an associate device in the libre3 application. Using the credentials of a patient account directly does not work.
+
+## Install
+
+```bash
+> git clone git@github.com:R4yL-dev/glcmd.git
+> cd glcmd
+> make
+> ./bin/glcmd
+🩸 7.7(mmo/L) 🡒
+```
+
+## TODO
+
+### Watcher
+
+`glcmd` simply connects to the libreview api to retrieve the current measurement. I'd like to add a watcher in the future. It should be able to run in infinity and retrieve measurements every defined period of time. This would make it possible, for example, to create a database or text file to track measurements over time.
