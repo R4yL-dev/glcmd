@@ -20,14 +20,6 @@ var validMethods = map[string]bool{
 	http.MethodOptions: false,
 }
 
-type httpReq struct {
-	method  string
-	url     *url.URL
-	payload []byte
-	headers http.Header
-	client  *http.Client
-}
-
 func NewHttpReq(method string, url string, payload []byte, headers http.Header, client *http.Client) (*httpReq, error) {
 	var newReq httpReq
 
