@@ -1,22 +1,33 @@
 # glcmd
 
-**Version**: 0.1
+## 🎯 About
+
+**Version**: 0.1.1
 **Date**: 2025-05-04
 
-`glcmd` is a small command-line tool that queries the LibreView API to retrieve blood glucose information from a LibreLinkUp (follower) account.
+`glcmd` is a command-line tool designed to retrieve and display blood glucose information from the **LibreView API** using a **LibreLinkUp follower account**. It allows users to quickly and easily monitor their glucose levels directly in the terminal, without the need for proprietary apps.
 
-It displays the latest glucose value directly in your terminal.
+This tool is ideal for people who want to have more control and flexibility over their glucose data, providing a simple, open-source alternative for tracking and displaying their measurements.
 
-## ✨ Features
+### 🌟 Key Features
 
-- Retrieve the current glucose measurement via the LibreLinkUp API.
-- Display it in the terminal.
+- **Retrieve current glucose readings** from the LibreView API using a **follower account**.
+- **Display glucose levels** in the terminal in a human-readable format (mmol/L).
+- **Open-source**: freely available to use, modify, and contribute to.
+- **Planned improvements**:
+  - JSON output for better integration.
+  - ASCII graph to visualize glucose trends.
+  - Continuous monitoring mode to track glucose levels over time and store data in a file or database.
+
+### 💡 Why `glcmd`?
+
+Managing diabetes requires constant tracking and monitoring of glucose levels. `glcmd` was created to offer users a lightweight, no-frills tool to access their glucose data without being tied to a proprietary platform or app. It aims to give people more flexibility, transparency, and control over their health data in a simple command-line interface.
 
 ## 📦 Prerequisites
 
 - **Go** 1.24.1
 
-> 📌 This project has only been tested on **Linux** for now.
+> 🚨 This project has only been tested on **Linux** for now.
 > `make install` places the binary in `/usr/local/bin`. If this folder does not exist on macOS, simply compile it with `make` and move the binary to a folder included in your `PATH`.
 
 ## ⚙️ Setup
@@ -38,13 +49,6 @@ make
 ./bin/glcmd
 🩸 7.7(mmol/L) 🡒
 ```
-
-## 📌 TODO
-
-- **US format**: add a flag to display glucose in US format.
-- **ToJSON()**: add an option to generate JSON output on stdout instead of classic text display.
-- **ASCIIGraph**: add the ability to display an ASCII graph of recent measurements in the terminal.
-- **Watcher**: implement a continuous monitoring mode, polling the API at a defined interval and logging the measurements to a file or database.
 
 ## 📄 License
 
