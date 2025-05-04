@@ -23,6 +23,14 @@ For `glcmd` to work, you need to give it the credentials of a follower account. 
 
 ## TODO
 
+### ToJSON()
+
+Add the possibility of generating json on standard output rather than the classic glucose display.
+
+### ASCIIGraph
+
+Adds the possibility of displaying the measurement graph in the terminal as an ascii graph.
+
 ### Watcher
 
 `glcmd` simply connects to the libreview api to retrieve the current measurement. I'd like to add a watcher in the future. It should be able to run in infinity and retrieve measurements every defined period of time. This would make it possible, for example, to create a database or text file to track measurements over time.
