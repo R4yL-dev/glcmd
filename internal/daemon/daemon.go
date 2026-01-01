@@ -21,6 +21,7 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -236,14 +237,39 @@ func (d *Daemon) initialFetch() error {
 
 // fetch retrieves the latest glucose data from /connections.
 // Used for periodic updates (every 5 minutes).
+// If authentication fails (401), automatically re-authenticates and retries once.
 func (d *Daemon) fetch() error {
 	ctx, cancel := context.WithTimeout(d.ctx, 30*time.Second)
 	defer cancel()
 
 	connectionsResp, err := d.client.GetConnections(ctx, d.token, d.accountID)
 	if err != nil {
-		slog.Error("failed to get connections during periodic fetch", "error", err)
-		return fmt.Errorf("failed to get connections: %w", err)
+		// Check if it's an authentication error
+		var authErr *libreclient.AuthError
+		if errors.As(err, &authErr) {
+			slog.Warn("authentication token expired, re-authenticating")
+
+			// Re-authenticate
+			if err := d.authenticate(); err != nil {
+				slog.Error("re-authentication failed", "error", err)
+				return fmt.Errorf("re-authentication failed: %w", err)
+			}
+
+			// Retry the fetch with new token
+			ctx, cancel := context.WithTimeout(d.ctx, 30*time.Second)
+			defer cancel()
+
+			connectionsResp, err = d.client.GetConnections(ctx, d.token, d.accountID)
+			if err != nil {
+				slog.Error("failed to get connections after re-authentication", "error", err)
+				return fmt.Errorf("failed to get connections after re-auth: %w", err)
+			}
+
+			slog.Info("re-authentication successful, fetch completed")
+		} else {
+			slog.Error("failed to get connections during periodic fetch", "error", err)
+			return fmt.Errorf("failed to get connections: %w", err)
+		}
 	}
 
 	if len(connectionsResp.Data) == 0 {
