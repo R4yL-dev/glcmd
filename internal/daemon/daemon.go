@@ -126,13 +126,13 @@ func (d *Daemon) Run() error {
 		select {
 		case <-d.ticker.C:
 			// Time to fetch new data
-			slog.Debug("fetching new measurement")
+			slog.Info("fetching new measurement")
 			if err := d.fetch(); err != nil {
 				// Log error but don't stop the daemon
 				// Network errors are expected and should not kill the daemon
 				slog.Error("fetch failed", "error", err)
 			} else {
-				slog.Debug("measurement fetched successfully")
+				slog.Info("measurement fetched successfully")
 			}
 
 		case <-d.ctx.Done():
