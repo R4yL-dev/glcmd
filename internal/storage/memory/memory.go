@@ -60,7 +60,7 @@ func (m *MemoryStorage) SaveMeasurement(measurement *glucosemeasurement.GlucoseM
 	return nil
 }
 
-// GetLatestMeasurement returns the most recent glucose measurement.
+// GetLatestMeasurement returns the most recent glucose measurement by timestamp.
 // Returns an error if no measurements exist.
 func (m *MemoryStorage) GetLatestMeasurement() (*glucosemeasurement.GlucoseMeasurement, error) {
 	m.mu.RLock()
@@ -70,7 +70,15 @@ func (m *MemoryStorage) GetLatestMeasurement() (*glucosemeasurement.GlucoseMeasu
 		return nil, errors.New("no measurements available")
 	}
 
-	return m.measurements[len(m.measurements)-1], nil
+	// Find the measurement with the most recent timestamp
+	latest := m.measurements[0]
+	for _, measurement := range m.measurements[1:] {
+		if measurement.Timestamp.After(latest.Timestamp) {
+			latest = measurement
+		}
+	}
+
+	return latest, nil
 }
 
 // GetAllMeasurements returns all stored glucose measurements.

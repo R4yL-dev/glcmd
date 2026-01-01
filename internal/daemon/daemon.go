@@ -38,21 +38,23 @@ import (
 //
 // It manages:
 //   - A ticker for periodic fetching (default 5 minutes)
+//   - A ticker for periodic display (1 minute)
 //   - Context-based lifecycle management for graceful shutdown
 //   - Storage backend for persisting fetched data
 //   - Authentication with LibreView API
 type Daemon struct {
-	storage   storage.Storage
-	ctx       context.Context
-	cancel    context.CancelFunc
-	ticker    *time.Ticker
-	interval  time.Duration
-	client    *libreclient.Client
-	email     string
-	password  string
-	token     string
-	accountID string
-	patientID string
+	storage       storage.Storage
+	ctx           context.Context
+	cancel        context.CancelFunc
+	ticker        *time.Ticker
+	displayTicker *time.Ticker
+	interval      time.Duration
+	client        *libreclient.Client
+	email         string
+	password      string
+	token         string
+	accountID     string
+	patientID     string
 }
 
 // New creates a new Daemon instance.
@@ -119,9 +121,13 @@ func (d *Daemon) Run() error {
 	d.ticker = time.NewTicker(d.interval)
 	defer d.ticker.Stop()
 
+	// Step 4: Start ticker for periodic display (every 1 minute)
+	d.displayTicker = time.NewTicker(1 * time.Minute)
+	defer d.displayTicker.Stop()
+
 	slog.Info("daemon started successfully", "interval", d.interval)
 
-	// Step 4: Main loop - fetch periodically until stopped
+	// Step 5: Main loop - fetch periodically until stopped
 	for {
 		select {
 		case <-d.ticker.C:
@@ -135,6 +141,10 @@ func (d *Daemon) Run() error {
 				slog.Info("measurement fetched successfully")
 			}
 
+		case <-d.displayTicker.C:
+			// Time to display the last measurement
+			d.displayLastMeasurement()
+
 		case <-d.ctx.Done():
 			// Context cancelled - graceful shutdown
 			slog.Info("daemon shutting down gracefully")
@@ -147,13 +157,16 @@ func (d *Daemon) Run() error {
 //
 // This method:
 //   - Cancels the daemon's context
-//   - Stops the ticker if running
+//   - Stops the tickers if running
 //   - Allows in-progress operations to complete
 //
 // After calling Stop(), the Run() method will return.
 func (d *Daemon) Stop() {
 	if d.ticker != nil {
 		d.ticker.Stop()
+	}
+	if d.displayTicker != nil {
+		d.displayTicker.Stop()
 	}
 	d.cancel()
 }
@@ -408,4 +421,50 @@ func (d *Daemon) storeSensor(sensor *struct {
 	}
 
 	return d.storage.SaveSensor(sensorConfig)
+}
+
+// displayLastMeasurement retrieves and displays the last recorded measurement.
+// This is called every minute by the displayTicker.
+func (d *Daemon) displayLastMeasurement() {
+	measurement, err := d.storage.GetLatestMeasurement()
+	if err != nil {
+		slog.Warn("no measurement available to display", "error", err)
+		return
+	}
+
+	// Build trend arrow display
+	trendArrowStr := ""
+	if measurement.TrendArrow != nil {
+		switch *measurement.TrendArrow {
+		case 1:
+			trendArrowStr = "⬇️⬇️"
+		case 2:
+			trendArrowStr = "⬇️"
+		case 3:
+			trendArrowStr = "➡️"
+		case 4:
+			trendArrowStr = "⬆️"
+		case 5:
+			trendArrowStr = "⬆️⬆️"
+		}
+	}
+
+	// Build status indicator
+	statusStr := ""
+	switch measurement.MeasurementColor {
+	case 1:
+		statusStr = "🟢 Normal"
+	case 2:
+		statusStr = "🟠 Warning"
+	case 3:
+		statusStr = "🔴 Critical"
+	}
+
+	// Log the measurement with all relevant information
+	slog.Info("last measurement",
+		"value", fmt.Sprintf("%.1f mmol/L (%d mg/dL)", measurement.Value, measurement.ValueInMgPerDl),
+		"trend", trendArrowStr,
+		"status", statusStr,
+		"timestamp", measurement.Timestamp.Format("2006-01-02 15:04:05"),
+	)
 }
