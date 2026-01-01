@@ -1,4 +1,6 @@
 bin/
+logs/
+glcmd
 
 *.txt
 

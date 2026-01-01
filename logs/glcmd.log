@@ -1,9 +1,0 @@
-time=2026-01-01T22:59:27.934+01:00 level=INFO msg="glcmd starting"
-time=2026-01-01T22:59:27.934+01:00 level=INFO msg="storage initialized" type=memory
-time=2026-01-01T22:59:27.934+01:00 level=INFO msg="starting daemon" interval=5m0s
-time=2026-01-01T22:59:27.934+01:00 level=INFO msg="authenticating with LibreView API"
-time=2026-01-01T22:59:28.236+01:00 level=INFO msg="authentication successful"
-time=2026-01-01T22:59:28.236+01:00 level=INFO msg="performing initial data fetch"
-time=2026-01-01T22:59:28.434+01:00 level=INFO msg="historical measurements stored" count=140
-time=2026-01-01T22:59:28.434+01:00 level=INFO msg="initial fetch completed successfully"
-time=2026-01-01T22:59:28.434+01:00 level=INFO msg="daemon started successfully" interval=5m0s
