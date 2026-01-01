@@ -13,7 +13,7 @@ INSTALLED_NAME=$(INSTALL_PATH)/glcmd
 # Compiler flags
 GO_FLAGS=-o
 
-.PHONY: all build-glcmd run-glcmd clean clean-glcmd fclean re install uninstall
+.PHONY: all build-glcmd run-glcmd clean clean-glcmd fclean re install uninstall test test-coverage test-verbose test-race
 
 all: build-glcmd
 
@@ -41,5 +41,19 @@ uninstall:
 	@echo "❌ glcmd removed from $(INSTALL_PATH)"
 reinstall: uninstall install
 
+# Test targets
+test:
+	go test ./internal/...
+
+test-coverage:
+	go test -cover ./internal/...
+	go test -coverprofile=coverage.out ./internal/...
+	go tool cover -html=coverage.out -o coverage.html
+
+test-verbose:
+	go test -v ./internal/...
+
+test-race:
+	go test -race ./internal/...
 
 re: fclean all
