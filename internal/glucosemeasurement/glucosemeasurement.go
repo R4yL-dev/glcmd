@@ -59,7 +59,7 @@ func (gm *GlucoseMeasurement) parseJSON(data []byte) error {
 		Data []struct {
 			GlucoseMeasurement struct {
 				FactoryTimestamp string  `json:"FactoryTimestamp"`
-				TimeStampe       string  `json:"Timestamp"`
+				Timestamp        string  `json:"Timestamp"`
 				ValueInMgPerDl   int     `json:"ValueInMgPerDl"`
 				TrendArrow       int     `json:"TrendArrow"`
 				MeasurementColor int     `json:"MeasurementColor"`
@@ -75,8 +75,12 @@ func (gm *GlucoseMeasurement) parseJSON(data []byte) error {
 		return err
 	}
 
+	if len(tmp.Data) == 0 {
+		return fmt.Errorf("cannot parse glucose measurement: API returned empty data array")
+	}
+
 	gm.factoryTimestamp = tmp.Data[0].GlucoseMeasurement.FactoryTimestamp
-	gm.timestamp = tmp.Data[0].GlucoseMeasurement.TimeStampe
+	gm.timestamp = tmp.Data[0].GlucoseMeasurement.Timestamp
 	gm.valueInMgPerDl = tmp.Data[0].GlucoseMeasurement.ValueInMgPerDl
 	gm.trendArrow = tmp.Data[0].GlucoseMeasurement.TrendArrow
 	gm.measurementColor = tmp.Data[0].GlucoseMeasurement.MeasurementColor

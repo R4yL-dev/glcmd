@@ -31,7 +31,11 @@ func (a *app) getPatientID() error {
 	}
 
 	if tmp.Status != 0 {
-		return fmt.Errorf("cannot get patientID")
+		return fmt.Errorf("cannot get patientID: API returned status %d", tmp.Status)
+	}
+
+	if len(tmp.Data) == 0 {
+		return fmt.Errorf("cannot get patientID: API returned empty data array")
 	}
 
 	if err := a.auth.SetPatientID(tmp.Data[0].PatientID); err != nil {
