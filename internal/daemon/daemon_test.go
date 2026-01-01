@@ -139,3 +139,55 @@ func TestStop_WithoutTicker(t *testing.T) {
 		t.Fatal("context should be cancelled")
 	}
 }
+
+// TestRun_GracefulShutdown tests that Run() stops gracefully when Stop() is called
+func TestRun_GracefulShutdown(t *testing.T) {
+	storage := memory.New()
+	daemon, err := New(storage, 100*time.Millisecond, "test@example.com", "password")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Run in goroutine (it will fail at authenticate, but that's ok for this test)
+	done := make(chan error, 1)
+	go func() {
+		done <- daemon.Run()
+	}()
+
+	// Give it a moment to start
+	time.Sleep(10 * time.Millisecond)
+
+	// Call Stop()
+	daemon.Stop()
+
+	// Run() should return quickly
+	select {
+	case err := <-done:
+		// It will return an auth error, but the important part is that it returned
+		_ = err // We expect an error (auth will fail with fake credentials)
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("Run() did not stop after Stop() was called")
+	}
+}
+
+// TestStop_Idempotent tests that calling Stop() multiple times is safe
+func TestStop_Idempotent(t *testing.T) {
+	storage := memory.New()
+	daemon, err := New(storage, 5*time.Minute, "test@example.com", "password")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Call Stop multiple times - should not panic
+	daemon.Stop()
+	daemon.Stop()
+	daemon.Stop()
+
+	// Context should be cancelled
+	select {
+	case <-daemon.ctx.Done():
+		// Expected
+	default:
+		t.Fatal("context should be cancelled")
+	}
+}

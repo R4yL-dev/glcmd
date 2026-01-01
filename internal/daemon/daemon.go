@@ -107,8 +107,27 @@ func (d *Daemon) Run() error {
 		return fmt.Errorf("initial fetch failed: %w", err)
 	}
 
-	// TODO (Step 7): Implement ticker loop and graceful shutdown
-	return nil
+	// Step 3: Start ticker for periodic fetches
+	d.ticker = time.NewTicker(d.interval)
+	defer d.ticker.Stop()
+
+	// Step 4: Main loop - fetch periodically until stopped
+	for {
+		select {
+		case <-d.ticker.C:
+			// Time to fetch new data
+			if err := d.fetch(); err != nil {
+				// Log error but don't stop the daemon
+				// Network errors are expected and should not kill the daemon
+				// TODO (Step 8): Use proper logger instead of ignoring
+				_ = err
+			}
+
+		case <-d.ctx.Done():
+			// Context cancelled - graceful shutdown
+			return nil
+		}
+	}
 }
 
 // Stop initiates a graceful shutdown of the daemon.
