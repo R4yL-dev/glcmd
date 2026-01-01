@@ -9,7 +9,7 @@ import (
 )
 
 // TestNewGlucoseMeasurement_EmptyDataArray tests that empty data array is properly handled
-// Critical: Prevents panic on API returning empty response (line 78-80)
+// Critical: Prevents panic on API returning empty response (line 79)
 func TestNewGlucoseMeasurement_EmptyDataArray(t *testing.T) {
 	emptyData := []byte(`{"data": []}`)
 
@@ -48,9 +48,9 @@ func TestNewGlucoseMeasurement_InvalidJSON(t *testing.T) {
 	}
 }
 
-// TestTrendArrow_InvalidCode tests fallback for trend arrow codes outside 1-5
-// Critical: Prevents silent data corruption (line 46-49)
-func TestTrendArrow_InvalidCode(t *testing.T) {
+// TestGetTrendArrowSymbol_InvalidCode tests fallback for trend arrow codes outside 1-5
+// Critical: Prevents silent data corruption
+func TestGetTrendArrowSymbol_InvalidCode(t *testing.T) {
 	tests := []struct {
 		name      string
 		trendCode int
@@ -69,7 +69,9 @@ func TestTrendArrow_InvalidCode(t *testing.T) {
 				t.Fatalf("unexpected error: %v", err)
 			}
 
-			arrow := gm.TrendArrow()
+			arrow := gm.GetTrendArrowSymbol()
+			// TrendArrow will be nil for code 0, and invalid for negative/out of range
+			// In all cases, we expect '?'
 			if arrow != '?' {
 				t.Errorf("expected fallback '?' for invalid trend code %d, got %c", tt.trendCode, arrow)
 			}
@@ -77,9 +79,9 @@ func TestTrendArrow_InvalidCode(t *testing.T) {
 	}
 }
 
-// TestTrendArrow_ValidCodes tests that valid trend codes (1-5) map to correct arrows
+// TestGetTrendArrowSymbol_ValidCodes tests that valid trend codes (1-5) map to correct arrows
 // Critical: Ensures correct directional glucose information
-func TestTrendArrow_ValidCodes(t *testing.T) {
+func TestGetTrendArrowSymbol_ValidCodes(t *testing.T) {
 	tests := []struct {
 		code     int
 		expected rune
@@ -99,16 +101,23 @@ func TestTrendArrow_ValidCodes(t *testing.T) {
 				t.Fatalf("unexpected error: %v", err)
 			}
 
-			arrow := gm.TrendArrow()
+			arrow := gm.GetTrendArrowSymbol()
 			if arrow != tt.expected {
 				t.Errorf("expected arrow %c for code %d, got %c", tt.expected, tt.code, arrow)
+			}
+
+			// Verify TrendArrow pointer is set
+			if gm.TrendArrow == nil {
+				t.Error("expected TrendArrow to be set, got nil")
+			} else if *gm.TrendArrow != tt.code {
+				t.Errorf("expected TrendArrow = %d, got %d", tt.code, *gm.TrendArrow)
 			}
 		})
 	}
 }
 
 // TestColorize_InvalidColorCode tests fallback for invalid color codes
-// Critical: Prevents format errors in output (line 96-99)
+// Critical: Prevents format errors in output
 func TestColorize_InvalidColorCode(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -170,20 +179,143 @@ func TestColorize_ValidColorCodes(t *testing.T) {
 	}
 }
 
-// Helper function to create valid glucose measurement JSON
+// TestNewGlucoseMeasurement_PublicFields tests that fields are now public and accessible
+func TestNewGlucoseMeasurement_PublicFields(t *testing.T) {
+	validJSON := createGlucoseJSON(7.5, 3, 1)
+	gm, err := NewGlucoseMeasurement([]byte(validJSON))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Test public field access
+	if gm.Value != 7.5 {
+		t.Errorf("expected Value = 7.5, got %f", gm.Value)
+	}
+
+	if gm.ValueInMgPerDl != 135 {
+		t.Errorf("expected ValueInMgPerDl = 135, got %d", gm.ValueInMgPerDl)
+	}
+
+	if gm.MeasurementColor != 1 {
+		t.Errorf("expected MeasurementColor = 1, got %d", gm.MeasurementColor)
+	}
+
+	if gm.Type != 1 {
+		t.Errorf("expected Type = 1, got %d", gm.Type)
+	}
+
+	// Verify timestamps are parsed and in UTC
+	if gm.Timestamp.IsZero() {
+		t.Error("expected Timestamp to be parsed, got zero time")
+	}
+
+	if gm.FactoryTimestamp.IsZero() {
+		t.Error("expected FactoryTimestamp to be parsed, got zero time")
+	}
+}
+
+// TestNewGlucoseMeasurement_TrendArrowPointer tests pointer behavior for TrendArrow
+func TestNewGlucoseMeasurement_TrendArrowPointer(t *testing.T) {
+	t.Run("TrendArrow is nil when code is 0", func(t *testing.T) {
+		jsonWith0 := createGlucoseJSON(7.5, 0, 1)
+		gm, err := NewGlucoseMeasurement([]byte(jsonWith0))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if gm.TrendArrow != nil {
+			t.Errorf("expected TrendArrow to be nil for code 0, got %v", *gm.TrendArrow)
+		}
+
+		// GetTrendArrowSymbol should return '?' for nil
+		symbol := gm.GetTrendArrowSymbol()
+		if symbol != '?' {
+			t.Errorf("expected '?' for nil TrendArrow, got %c", symbol)
+		}
+	})
+
+	t.Run("TrendArrow is set when code is valid", func(t *testing.T) {
+		jsonWith3 := createGlucoseJSON(7.5, 3, 1)
+		gm, err := NewGlucoseMeasurement([]byte(jsonWith3))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if gm.TrendArrow == nil {
+			t.Fatal("expected TrendArrow to be set, got nil")
+		}
+
+		if *gm.TrendArrow != 3 {
+			t.Errorf("expected TrendArrow = 3, got %d", *gm.TrendArrow)
+		}
+	})
+}
+
+// TestNewGlucoseMeasurement_RealAPIExample tests parsing with real API format
+func TestNewGlucoseMeasurement_RealAPIExample(t *testing.T) {
+	// Real example from exploration/dumps/connections.json
+	realJSON := `{
+		"data": [{
+			"glucoseMeasurement": {
+				"FactoryTimestamp": "1/1/2026 1:52:27 PM",
+				"Timestamp": "1/1/2026 2:52:27 PM",
+				"Value": 5.1,
+				"ValueInMgPerDl": 91,
+				"TrendArrow": 3,
+				"TrendMessage": null,
+				"MeasurementColor": 1,
+				"GlucoseUnits": 0,
+				"isHigh": false,
+				"isLow": false,
+				"type": 1
+			}
+		}]
+	}`
+
+	gm, err := NewGlucoseMeasurement([]byte(realJSON))
+	if err != nil {
+		t.Fatalf("failed to parse real API example: %v", err)
+	}
+
+	// Verify values
+	if gm.Value != 5.1 {
+		t.Errorf("expected Value = 5.1, got %f", gm.Value)
+	}
+
+	if gm.ValueInMgPerDl != 91 {
+		t.Errorf("expected ValueInMgPerDl = 91, got %d", gm.ValueInMgPerDl)
+	}
+
+	if gm.TrendArrow == nil || *gm.TrendArrow != 3 {
+		t.Errorf("expected TrendArrow = 3, got %v", gm.TrendArrow)
+	}
+
+	if gm.Type != 1 {
+		t.Errorf("expected Type = 1, got %d", gm.Type)
+	}
+
+	// Verify timestamp parsing
+	if gm.Timestamp.IsZero() {
+		t.Error("expected parsed timestamp, got zero")
+	}
+}
+
+// Helper function to create valid glucose measurement JSON with LibreView timestamp format
 func createGlucoseJSON(value float64, trendArrow, measurementColor int) string {
 	return fmt.Sprintf(`{
 		"data": [{
 			"glucoseMeasurement": {
-				"FactoryTimestamp": "2024-01-01T12:00:00",
-				"Timestamp": "2024-01-01T12:00:00",
+				"FactoryTimestamp": "1/1/2026 12:00:00 PM",
+				"Timestamp": "1/1/2026 1:00:00 PM",
 				"ValueInMgPerDl": 135,
 				"TrendArrow": %d,
 				"MeasurementColor": %d,
 				"GlucoseUnits": 1,
 				"Value": %.1f,
 				"isHigh": false,
-				"isLow": false
+				"isLow": false,
+				"TrendMessage": null,
+				"type": 1
 			}
 		}]
 	}`, trendArrow, measurementColor, value)
