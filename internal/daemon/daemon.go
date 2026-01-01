@@ -22,6 +22,7 @@ package daemon
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/R4yL-dev/glcmd/internal/glucosemeasurement"
@@ -97,34 +98,45 @@ func New(storage storage.Storage, interval time.Duration, email string, password
 //
 // Returns an error if the daemon cannot start or encounters a fatal error.
 func (d *Daemon) Run() error {
+	slog.Info("starting daemon", "interval", d.interval)
+
 	// Step 1: Authenticate
+	slog.Info("authenticating with LibreView API")
 	if err := d.authenticate(); err != nil {
 		return fmt.Errorf("authentication failed: %w", err)
 	}
+	slog.Info("authentication successful")
 
 	// Step 2: Initial fetch (historical data from /graph)
+	slog.Info("performing initial data fetch")
 	if err := d.initialFetch(); err != nil {
 		return fmt.Errorf("initial fetch failed: %w", err)
 	}
+	slog.Info("initial fetch completed successfully")
 
 	// Step 3: Start ticker for periodic fetches
 	d.ticker = time.NewTicker(d.interval)
 	defer d.ticker.Stop()
+
+	slog.Info("daemon started successfully", "interval", d.interval)
 
 	// Step 4: Main loop - fetch periodically until stopped
 	for {
 		select {
 		case <-d.ticker.C:
 			// Time to fetch new data
+			slog.Debug("fetching new measurement")
 			if err := d.fetch(); err != nil {
 				// Log error but don't stop the daemon
 				// Network errors are expected and should not kill the daemon
-				// TODO (Step 8): Use proper logger instead of ignoring
-				_ = err
+				slog.Error("fetch failed", "error", err)
+			} else {
+				slog.Debug("measurement fetched successfully")
 			}
 
 		case <-d.ctx.Done():
 			// Context cancelled - graceful shutdown
+			slog.Info("daemon shutting down gracefully")
 			return nil
 		}
 	}
@@ -152,6 +164,7 @@ func (d *Daemon) authenticate() error {
 
 	token, userID, accountID, err := d.client.Authenticate(ctx, d.email, d.password)
 	if err != nil {
+		slog.Error("authentication failed", "error", err)
 		return fmt.Errorf("authentication failed: %w", err)
 	}
 
@@ -160,6 +173,7 @@ func (d *Daemon) authenticate() error {
 	// userID is not the same as patientID, we'll get patientID from /connections
 	_ = userID
 
+	slog.Debug("authentication successful", "accountID", accountID)
 	return nil
 }
 
@@ -169,39 +183,53 @@ func (d *Daemon) initialFetch() error {
 	defer cancel()
 
 	// First, get connections to obtain patientID
+	slog.Debug("fetching connections to obtain patientID")
 	connectionsResp, err := d.client.GetConnections(ctx, d.token, d.accountID)
 	if err != nil {
+		slog.Error("failed to get connections", "error", err)
 		return fmt.Errorf("failed to get connections: %w", err)
 	}
 
 	if len(connectionsResp.Data) == 0 {
+		slog.Error("no patient data in connections response")
 		return fmt.Errorf("no patient data in connections response")
 	}
 
 	d.patientID = connectionsResp.Data[0].PatientID
+	slog.Debug("patient ID obtained", "patientID", d.patientID)
 
 	// Store current measurement from /connections
 	if err := d.storeCurrentMeasurement(&connectionsResp.Data[0].GlucoseMeasurement); err != nil {
+		slog.Error("failed to store current measurement", "error", err)
 		return fmt.Errorf("failed to store current measurement: %w", err)
 	}
+	slog.Debug("current measurement stored")
 
 	// Now fetch historical data from /graph
+	slog.Debug("fetching historical data from /graph")
 	graphResp, err := d.client.GetGraph(ctx, d.token, d.accountID, d.patientID)
 	if err != nil {
+		slog.Error("failed to get graph data", "error", err)
 		return fmt.Errorf("failed to get graph data: %w", err)
 	}
 
 	// Store historical measurements
+	storedCount := 0
 	for _, point := range graphResp.Data.GraphData {
 		if err := d.storeHistoricalMeasurement(&point); err != nil {
+			slog.Error("failed to store historical measurement", "error", err)
 			return fmt.Errorf("failed to store historical measurement: %w", err)
 		}
+		storedCount++
 	}
+	slog.Info("historical measurements stored", "count", storedCount)
 
 	// Store sensor configuration
 	if err := d.storeSensor(&graphResp.Data.Connection.Sensor); err != nil {
+		slog.Error("failed to store sensor", "error", err)
 		return fmt.Errorf("failed to store sensor: %w", err)
 	}
+	slog.Debug("sensor configuration stored", "serialNumber", graphResp.Data.Connection.Sensor.SN)
 
 	return nil
 }
@@ -214,14 +242,19 @@ func (d *Daemon) fetch() error {
 
 	connectionsResp, err := d.client.GetConnections(ctx, d.token, d.accountID)
 	if err != nil {
+		slog.Error("failed to get connections during periodic fetch", "error", err)
 		return fmt.Errorf("failed to get connections: %w", err)
 	}
 
 	if len(connectionsResp.Data) == 0 {
+		slog.Error("no patient data in periodic fetch")
 		return fmt.Errorf("no patient data in connections response")
 	}
 
-	return d.storeCurrentMeasurement(&connectionsResp.Data[0].GlucoseMeasurement)
+	gm := &connectionsResp.Data[0].GlucoseMeasurement
+	slog.Debug("measurement received", "value", gm.Value, "trendArrow", gm.TrendArrow)
+
+	return d.storeCurrentMeasurement(gm)
 }
 
 // storeCurrentMeasurement stores a current measurement (from /connections).
