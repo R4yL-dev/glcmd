@@ -11,8 +11,13 @@ import (
 func TestNew_Initialization(t *testing.T) {
 	storage := memory.New()
 	interval := 5 * time.Minute
+	email := "test@example.com"
+	password := "password123"
 
-	daemon := New(storage, interval)
+	daemon, err := New(storage, interval, email, password)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	if daemon == nil {
 		t.Fatal("expected daemon to be non-nil")
@@ -34,16 +39,49 @@ func TestNew_Initialization(t *testing.T) {
 		t.Errorf("expected interval = %v, got %v", interval, daemon.interval)
 	}
 
+	if daemon.client == nil {
+		t.Error("expected HTTP client to be set")
+	}
+
+	if daemon.headers == nil {
+		t.Error("expected headers to be set")
+	}
+
+	if daemon.creds == nil {
+		t.Error("expected credentials to be set")
+	}
+
 	// Ticker should be nil until Run() is called
 	if daemon.ticker != nil {
 		t.Error("expected ticker to be nil before Run()")
 	}
 }
 
+// TestNew_InvalidCredentials tests that New() returns error for invalid credentials
+func TestNew_InvalidCredentials(t *testing.T) {
+	storage := memory.New()
+	interval := 5 * time.Minute
+
+	// Empty email should fail
+	_, err := New(storage, interval, "", "password")
+	if err == nil {
+		t.Error("expected error for empty email")
+	}
+
+	// Empty password should fail
+	_, err = New(storage, interval, "test@example.com", "")
+	if err == nil {
+		t.Error("expected error for empty password")
+	}
+}
+
 // TestStop_CancelsContext tests that Stop() cancels the daemon's context
 func TestStop_CancelsContext(t *testing.T) {
 	storage := memory.New()
-	daemon := New(storage, 5*time.Minute)
+	daemon, err := New(storage, 5*time.Minute, "test@example.com", "password")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	// Context should not be cancelled initially
 	select {
@@ -68,7 +106,10 @@ func TestStop_CancelsContext(t *testing.T) {
 // TestStop_StopsTicker tests that Stop() stops the ticker if it exists
 func TestStop_StopsTicker(t *testing.T) {
 	storage := memory.New()
-	daemon := New(storage, 5*time.Minute)
+	daemon, err := New(storage, 5*time.Minute, "test@example.com", "password")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	// Manually create a ticker to simulate Run() behavior
 	daemon.ticker = time.NewTicker(1 * time.Second)
@@ -82,7 +123,10 @@ func TestStop_StopsTicker(t *testing.T) {
 // TestStop_WithoutTicker tests that Stop() works even if ticker is nil
 func TestStop_WithoutTicker(t *testing.T) {
 	storage := memory.New()
-	daemon := New(storage, 5*time.Minute)
+	daemon, err := New(storage, 5*time.Minute, "test@example.com", "password")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	// Stop should not panic even without a ticker
 	daemon.Stop()
@@ -93,29 +137,5 @@ func TestStop_WithoutTicker(t *testing.T) {
 		// Expected
 	default:
 		t.Fatal("context should be cancelled")
-	}
-}
-
-// TestRun_ReturnsWithoutError tests that Run() can be called (skeleton implementation)
-func TestRun_ReturnsWithoutError(t *testing.T) {
-	storage := memory.New()
-	daemon := New(storage, 5*time.Minute)
-
-	// Current skeleton implementation should return immediately
-	err := daemon.Run()
-	if err != nil {
-		t.Errorf("expected no error from skeleton Run(), got %v", err)
-	}
-}
-
-// TestFetch_ReturnsWithoutError tests that fetch() can be called (skeleton implementation)
-func TestFetch_ReturnsWithoutError(t *testing.T) {
-	storage := memory.New()
-	daemon := New(storage, 5*time.Minute)
-
-	// Current skeleton implementation should return immediately
-	err := daemon.fetch()
-	if err != nil {
-		t.Errorf("expected no error from skeleton fetch(), got %v", err)
 	}
 }
