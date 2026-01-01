@@ -43,12 +43,12 @@ func TestNew_Initialization(t *testing.T) {
 		t.Error("expected HTTP client to be set")
 	}
 
-	if daemon.headers == nil {
-		t.Error("expected headers to be set")
+	if daemon.email != email {
+		t.Errorf("expected email = %s, got %s", email, daemon.email)
 	}
 
-	if daemon.creds == nil {
-		t.Error("expected credentials to be set")
+	if daemon.password != password {
+		t.Errorf("expected password = %s, got %s", password, daemon.password)
 	}
 
 	// Ticker should be nil until Run() is called

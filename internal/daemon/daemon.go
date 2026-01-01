@@ -10,7 +10,10 @@
 // Usage:
 //
 //	storage := memory.New()
-//	d := daemon.New(storage, 5*time.Minute)
+//	d, err := daemon.New(storage, 5*time.Minute, "email@example.com", "password")
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
 //	if err := d.Run(); err != nil {
 //	    log.Fatal(err)
 //	}
@@ -18,16 +21,11 @@ package daemon
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"net/http"
 	"time"
 
-	"github.com/R4yL-dev/glcmd/internal/config"
-	"github.com/R4yL-dev/glcmd/internal/credentials"
 	"github.com/R4yL-dev/glcmd/internal/glucosemeasurement"
-	"github.com/R4yL-dev/glcmd/internal/headers"
-	"github.com/R4yL-dev/glcmd/internal/httpreq"
+	"github.com/R4yL-dev/glcmd/internal/libreclient"
 	"github.com/R4yL-dev/glcmd/internal/models"
 	"github.com/R4yL-dev/glcmd/internal/storage"
 	"github.com/R4yL-dev/glcmd/internal/utils/timeparser"
@@ -47,10 +45,11 @@ type Daemon struct {
 	cancel    context.CancelFunc
 	ticker    *time.Ticker
 	interval  time.Duration
-	creds     *credentials.Credentials
-	client    *http.Client
-	headers   *headers.Headers
-	authToken string
+	client    *libreclient.Client
+	email     string
+	password  string
+	token     string
+	accountID string
 	patientID string
 }
 
@@ -65,22 +64,23 @@ type Daemon struct {
 // The daemon is created with a background context that can be cancelled
 // via the Stop() method for graceful shutdown.
 func New(storage storage.Storage, interval time.Duration, email string, password string) (*Daemon, error) {
-	ctx, cancel := context.WithCancel(context.Background())
-
-	creds, err := credentials.NewCredentials(email, password)
-	if err != nil {
-		cancel() // Clean up context
-		return nil, fmt.Errorf("failed to create credentials: %w", err)
+	if email == "" {
+		return nil, fmt.Errorf("email cannot be empty")
 	}
+	if password == "" {
+		return nil, fmt.Errorf("password cannot be empty")
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
 
 	return &Daemon{
 		storage:  storage,
 		ctx:      ctx,
 		cancel:   cancel,
 		interval: interval,
-		creds:    creds,
-		client:   &http.Client{Timeout: 30 * time.Second},
-		headers:  headers.NewHeaders(),
+		client:   libreclient.NewClient(nil),
+		email:    email,
+		password: password,
 	}, nil
 }
 
@@ -102,17 +102,12 @@ func (d *Daemon) Run() error {
 		return fmt.Errorf("authentication failed: %w", err)
 	}
 
-	// Step 2: Get patientID
-	if err := d.fetchPatientID(); err != nil {
-		return fmt.Errorf("failed to get patient ID: %w", err)
-	}
-
-	// Step 3: Initial fetch (historical data from /graph)
+	// Step 2: Initial fetch (historical data from /graph)
 	if err := d.initialFetch(); err != nil {
 		return fmt.Errorf("initial fetch failed: %w", err)
 	}
 
-	// TODO (Step 6): Implement ticker loop and graceful shutdown
+	// TODO (Step 7): Implement ticker loop and graceful shutdown
 	return nil
 }
 
@@ -131,213 +126,175 @@ func (d *Daemon) Stop() {
 	d.cancel()
 }
 
-// authenticate authenticates with the LibreView API and builds auth headers.
+// authenticate authenticates with the LibreView API and stores credentials.
 func (d *Daemon) authenticate() error {
-	// Prepare credentials JSON
-	payload, err := d.creds.ToJSON()
+	ctx, cancel := context.WithTimeout(d.ctx, 30*time.Second)
+	defer cancel()
+
+	token, userID, accountID, err := d.client.Authenticate(ctx, d.email, d.password)
 	if err != nil {
-		return fmt.Errorf("failed to serialize credentials: %w", err)
+		return fmt.Errorf("authentication failed: %w", err)
 	}
 
-	// Make auth request
-	req, err := httpreq.NewHttpReq("POST", config.LoginURL, payload, d.headers.DefaultHeader(), d.client)
-	if err != nil {
-		return fmt.Errorf("failed to create auth request: %w", err)
-	}
-
-	res, err := req.Do()
-	if err != nil {
-		return fmt.Errorf("auth request failed: %w", err)
-	}
-
-	// Parse auth response
-	auth, err := NewAuthFromResponse(res)
-	if err != nil {
-		return fmt.Errorf("failed to parse auth response: %w", err)
-	}
-
-	// Build auth header for future requests
-	d.headers.BuildAuthHeader(auth.Token, auth.UserID)
-	d.authToken = auth.Token
-	d.patientID = auth.UserID // Temporarily store userID, will get actual patientID next
+	d.token = token
+	d.accountID = accountID
+	// userID is not the same as patientID, we'll get patientID from /connections
+	_ = userID
 
 	return nil
 }
 
-// AuthResponse represents the authentication response structure
-type AuthResponse struct {
-	Token   string
-	UserID  string
-}
-
-// NewAuthFromResponse parses authentication response
-func NewAuthFromResponse(data []byte) (*AuthResponse, error) {
-	var tmp struct {
-		Data struct {
-			User struct {
-				ID string `json:"id"`
-			} `json:"user"`
-			AuthTicket struct {
-				Token string `json:"token"`
-			} `json:"authTicket"`
-		} `json:"data"`
-	}
-
-	if err := json.Unmarshal(data, &tmp); err != nil {
-		return nil, err
-	}
-
-	return &AuthResponse{
-		Token:  tmp.Data.AuthTicket.Token,
-		UserID: tmp.Data.User.ID,
-	}, nil
-}
-
-// fetchPatientID retrieves the patient ID from the /connections endpoint.
-func (d *Daemon) fetchPatientID() error {
-	req, err := httpreq.NewHttpReq("GET", config.ConnectionsURL, nil, d.headers.AuthHeader(), d.client)
-	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
-	}
-
-	res, err := req.Do()
-	if err != nil {
-		return fmt.Errorf("request failed: %w", err)
-	}
-
-	var result struct {
-		Data []struct {
-			PatientID string `json:"patientId"`
-		} `json:"data"`
-	}
-
-	if err := json.Unmarshal(res, &result); err != nil {
-		return fmt.Errorf("failed to decode response: %w", err)
-	}
-
-	if len(result.Data) == 0 {
-		return fmt.Errorf("no patient data in response")
-	}
-
-	d.patientID = result.Data[0].PatientID
-	return nil
-}
-
-// initialFetch performs the initial data fetch from /graph (12h historical data).
+// initialFetch performs the initial data fetch from /connections and /graph.
 func (d *Daemon) initialFetch() error {
-	url := fmt.Sprintf("https://api-eu.libreview.io/llu/connections/%s/graph", d.patientID)
-	req, err := httpreq.NewHttpReq("GET", url, nil, d.headers.AuthHeader(), d.client)
+	ctx, cancel := context.WithTimeout(d.ctx, 30*time.Second)
+	defer cancel()
+
+	// First, get connections to obtain patientID
+	connectionsResp, err := d.client.GetConnections(ctx, d.token, d.accountID)
 	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
+		return fmt.Errorf("failed to get connections: %w", err)
 	}
 
-	res, err := req.Do()
+	if len(connectionsResp.Data) == 0 {
+		return fmt.Errorf("no patient data in connections response")
+	}
+
+	d.patientID = connectionsResp.Data[0].PatientID
+
+	// Store current measurement from /connections
+	if err := d.storeCurrentMeasurement(&connectionsResp.Data[0].GlucoseMeasurement); err != nil {
+		return fmt.Errorf("failed to store current measurement: %w", err)
+	}
+
+	// Now fetch historical data from /graph
+	graphResp, err := d.client.GetGraph(ctx, d.token, d.accountID, d.patientID)
 	if err != nil {
-		return fmt.Errorf("request failed: %w", err)
-	}
-
-	var result struct {
-		Data struct {
-			Connection struct {
-				GlucoseMeasurement struct {
-					ValueInMgPerDl   int     `json:"ValueInMgPerDl"`
-					Value            float64 `json:"Value"`
-					TrendArrow       int     `json:"TrendArrow"`
-					MeasurementColor int     `json:"MeasurementColor"`
-					GlucoseUnits     int     `json:"GlucoseUnits"`
-					Timestamp        string  `json:"Timestamp"`
-					IsHigh           bool    `json:"isHigh"`
-					IsLow            bool    `json:"isLow"`
-				} `json:"glucoseMeasurement"`
-				Sensor struct {
-					DeviceID string `json:"deviceId"`
-					SN       string `json:"sn"`
-					A        int    `json:"a"`
-					W        int    `json:"w"`
-					PT       int    `json:"pt"`
-					S        bool   `json:"s"`
-					LJ       bool   `json:"lj"`
-				} `json:"sensor"`
-			} `json:"connection"`
-			GraphData []struct {
-				FactoryTimestamp string  `json:"FactoryTimestamp"`
-				Timestamp        string  `json:"Timestamp"`
-				ValueInMgPerDl   int     `json:"ValueInMgPerDl"`
-				Value            float64 `json:"Value"`
-				MeasurementColor int     `json:"MeasurementColor"`
-				GlucoseUnits     int     `json:"GlucoseUnits"`
-				IsHigh           bool    `json:"isHigh"`
-				IsLow            bool    `json:"isLow"`
-				Type             int     `json:"type"`
-			} `json:"graphData"`
-		} `json:"data"`
-	}
-
-	if err := json.Unmarshal(res, &result); err != nil {
-		return fmt.Errorf("failed to decode response: %w", err)
-	}
-
-	// Store current measurement
-	current := result.Data.Connection.GlucoseMeasurement
-	timestamp, err := timeparser.ParseLibreViewTimestamp(current.Timestamp)
-	if err != nil {
-		return fmt.Errorf("failed to parse current timestamp: %w", err)
-	}
-
-	trendArrow := current.TrendArrow
-	currentMeasurement := &glucosemeasurement.GlucoseMeasurement{
-		FactoryTimestamp: timestamp, // Same as Timestamp for current
-		Timestamp:        timestamp,
-		Value:            current.Value,
-		ValueInMgPerDl:   current.ValueInMgPerDl,
-		TrendArrow:       &trendArrow,
-		MeasurementColor: current.MeasurementColor,
-		GlucoseUnits:     current.GlucoseUnits,
-		IsHigh:           current.IsHigh,
-		IsLow:            current.IsLow,
-		Type:             1, // Current measurement
-	}
-
-	if err := d.storage.SaveMeasurement(currentMeasurement); err != nil {
-		return fmt.Errorf("failed to save current measurement: %w", err)
+		return fmt.Errorf("failed to get graph data: %w", err)
 	}
 
 	// Store historical measurements
-	for _, point := range result.Data.GraphData {
-		factoryTimestamp, err := timeparser.ParseLibreViewTimestamp(point.FactoryTimestamp)
-		if err != nil {
-			return fmt.Errorf("failed to parse factory timestamp: %w", err)
-		}
-
-		timestamp, err := timeparser.ParseLibreViewTimestamp(point.Timestamp)
-		if err != nil {
-			return fmt.Errorf("failed to parse timestamp: %w", err)
-		}
-
-		measurement := &glucosemeasurement.GlucoseMeasurement{
-			FactoryTimestamp: factoryTimestamp,
-			Timestamp:        timestamp,
-			Value:            point.Value,
-			ValueInMgPerDl:   point.ValueInMgPerDl,
-			TrendArrow:       nil, // Historical data has no trend arrow
-			MeasurementColor: point.MeasurementColor,
-			GlucoseUnits:     point.GlucoseUnits,
-			IsHigh:           point.IsHigh,
-			IsLow:            point.IsLow,
-			Type:             point.Type,
-		}
-
-		if err := d.storage.SaveMeasurement(measurement); err != nil {
-			return fmt.Errorf("failed to save historical measurement: %w", err)
+	for _, point := range graphResp.Data.GraphData {
+		if err := d.storeHistoricalMeasurement(&point); err != nil {
+			return fmt.Errorf("failed to store historical measurement: %w", err)
 		}
 	}
 
 	// Store sensor configuration
-	sensor := result.Data.Connection.Sensor
-	activationTime, err := timeparser.ParseLibreViewTimestamp(result.Data.Connection.GlucoseMeasurement.Timestamp)
-	if err != nil {
-		return fmt.Errorf("failed to parse sensor activation: %w", err)
+	if err := d.storeSensor(&graphResp.Data.Connection.Sensor); err != nil {
+		return fmt.Errorf("failed to store sensor: %w", err)
 	}
+
+	return nil
+}
+
+// fetch retrieves the latest glucose data from /connections.
+// Used for periodic updates (every 5 minutes).
+func (d *Daemon) fetch() error {
+	ctx, cancel := context.WithTimeout(d.ctx, 30*time.Second)
+	defer cancel()
+
+	connectionsResp, err := d.client.GetConnections(ctx, d.token, d.accountID)
+	if err != nil {
+		return fmt.Errorf("failed to get connections: %w", err)
+	}
+
+	if len(connectionsResp.Data) == 0 {
+		return fmt.Errorf("no patient data in connections response")
+	}
+
+	return d.storeCurrentMeasurement(&connectionsResp.Data[0].GlucoseMeasurement)
+}
+
+// storeCurrentMeasurement stores a current measurement (from /connections).
+func (d *Daemon) storeCurrentMeasurement(gm *struct {
+	ValueInMgPerDl   int     `json:"ValueInMgPerDl"`
+	Value            float64 `json:"Value"`
+	TrendArrow       int     `json:"TrendArrow"`
+	TrendMessage     string  `json:"TrendMessage"`
+	MeasurementColor int     `json:"MeasurementColor"`
+	GlucoseUnits     int     `json:"GlucoseUnits"`
+	Timestamp        string  `json:"Timestamp"`
+	IsHigh           bool    `json:"isHigh"`
+	IsLow            bool    `json:"isLow"`
+}) error {
+	timestamp, err := timeparser.ParseLibreViewTimestamp(gm.Timestamp)
+	if err != nil {
+		return fmt.Errorf("failed to parse timestamp: %w", err)
+	}
+
+	trendArrow := gm.TrendArrow
+	var trendMessage *string
+	if gm.TrendMessage != "" {
+		trendMessage = &gm.TrendMessage
+	}
+
+	measurement := &glucosemeasurement.GlucoseMeasurement{
+		FactoryTimestamp: timestamp,
+		Timestamp:        timestamp,
+		Value:            gm.Value,
+		ValueInMgPerDl:   gm.ValueInMgPerDl,
+		TrendArrow:       &trendArrow,
+		TrendMessage:     trendMessage,
+		MeasurementColor: gm.MeasurementColor,
+		GlucoseUnits:     gm.GlucoseUnits,
+		IsHigh:           gm.IsHigh,
+		IsLow:            gm.IsLow,
+		Type:             1, // Current measurement
+	}
+
+	return d.storage.SaveMeasurement(measurement)
+}
+
+// storeHistoricalMeasurement stores a historical measurement (from /graph).
+func (d *Daemon) storeHistoricalMeasurement(point *struct {
+	FactoryTimestamp string  `json:"FactoryTimestamp"`
+	Timestamp        string  `json:"Timestamp"`
+	ValueInMgPerDl   int     `json:"ValueInMgPerDl"`
+	Value            float64 `json:"Value"`
+	MeasurementColor int     `json:"MeasurementColor"`
+	GlucoseUnits     int     `json:"GlucoseUnits"`
+	IsHigh           bool    `json:"isHigh"`
+	IsLow            bool    `json:"isLow"`
+	Type             int     `json:"type"`
+}) error {
+	factoryTimestamp, err := timeparser.ParseLibreViewTimestamp(point.FactoryTimestamp)
+	if err != nil {
+		return fmt.Errorf("failed to parse factory timestamp: %w", err)
+	}
+
+	timestamp, err := timeparser.ParseLibreViewTimestamp(point.Timestamp)
+	if err != nil {
+		return fmt.Errorf("failed to parse timestamp: %w", err)
+	}
+
+	measurement := &glucosemeasurement.GlucoseMeasurement{
+		FactoryTimestamp: factoryTimestamp,
+		Timestamp:        timestamp,
+		Value:            point.Value,
+		ValueInMgPerDl:   point.ValueInMgPerDl,
+		TrendArrow:       nil, // Historical data has no trend arrow
+		MeasurementColor: point.MeasurementColor,
+		GlucoseUnits:     point.GlucoseUnits,
+		IsHigh:           point.IsHigh,
+		IsLow:            point.IsLow,
+		Type:             point.Type,
+	}
+
+	return d.storage.SaveMeasurement(measurement)
+}
+
+// storeSensor stores sensor configuration.
+func (d *Daemon) storeSensor(sensor *struct {
+	DeviceID string `json:"deviceId"`
+	SN       string `json:"sn"`
+	A        int    `json:"a"`
+	W        int    `json:"w"`
+	PT       int    `json:"pt"`
+	S        bool   `json:"s"`
+	LJ       bool   `json:"lj"`
+}) error {
+	// Use current time as activation time (we don't have exact activation time from API)
+	activationTime := time.Now().UTC()
 
 	sensorConfig := &models.SensorConfig{
 		SerialNumber: sensor.SN,
@@ -350,82 +307,5 @@ func (d *Daemon) initialFetch() error {
 		DetectedAt:   time.Now().UTC(),
 	}
 
-	if err := d.storage.SaveSensor(sensorConfig); err != nil {
-		return fmt.Errorf("failed to save sensor config: %w", err)
-	}
-
-	return nil
-}
-
-// fetch retrieves the latest glucose data from the LibreView API
-// and stores it in the configured storage backend.
-//
-// This method fetches from /connections which returns only the current measurement.
-// Used for periodic updates (every 5 minutes).
-func (d *Daemon) fetch() error {
-	req, err := httpreq.NewHttpReq("GET", config.ConnectionsURL, nil, d.headers.AuthHeader(), d.client)
-	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
-	}
-
-	res, err := req.Do()
-	if err != nil {
-		return fmt.Errorf("request failed: %w", err)
-	}
-
-	var result struct {
-		Data []struct {
-			GlucoseMeasurement struct {
-				ValueInMgPerDl   int     `json:"ValueInMgPerDl"`
-				Value            float64 `json:"Value"`
-				TrendArrow       int     `json:"TrendArrow"`
-				TrendMessage     string  `json:"TrendMessage"`
-				MeasurementColor int     `json:"MeasurementColor"`
-				GlucoseUnits     int     `json:"GlucoseUnits"`
-				Timestamp        string  `json:"Timestamp"`
-				IsHigh           bool    `json:"isHigh"`
-				IsLow            bool    `json:"isLow"`
-			} `json:"glucoseMeasurement"`
-		} `json:"data"`
-	}
-
-	if err := json.Unmarshal(res, &result); err != nil {
-		return fmt.Errorf("failed to decode response: %w", err)
-	}
-
-	if len(result.Data) == 0 {
-		return fmt.Errorf("no data in response")
-	}
-
-	current := result.Data[0].GlucoseMeasurement
-	timestamp, err := timeparser.ParseLibreViewTimestamp(current.Timestamp)
-	if err != nil {
-		return fmt.Errorf("failed to parse timestamp: %w", err)
-	}
-
-	trendArrow := current.TrendArrow
-	var trendMessage *string
-	if current.TrendMessage != "" {
-		trendMessage = &current.TrendMessage
-	}
-
-	measurement := &glucosemeasurement.GlucoseMeasurement{
-		FactoryTimestamp: timestamp,
-		Timestamp:        timestamp,
-		Value:            current.Value,
-		ValueInMgPerDl:   current.ValueInMgPerDl,
-		TrendArrow:       &trendArrow,
-		TrendMessage:     trendMessage,
-		MeasurementColor: current.MeasurementColor,
-		GlucoseUnits:     current.GlucoseUnits,
-		IsHigh:           current.IsHigh,
-		IsLow:            current.IsLow,
-		Type:             1,
-	}
-
-	if err := d.storage.SaveMeasurement(measurement); err != nil {
-		return fmt.Errorf("failed to save measurement: %w", err)
-	}
-
-	return nil
+	return d.storage.SaveSensor(sensorConfig)
 }
