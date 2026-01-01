@@ -1,0 +1,132 @@
+package libreclient
+
+import (
+	"context"
+	"fmt"
+	"net/http"
+)
+
+// ConnectionsResponse represents the response from /llu/connections endpoint.
+type ConnectionsResponse struct {
+	Data []struct {
+		PatientID string `json:"patientId"`
+		GlucoseMeasurement struct {
+			ValueInMgPerDl   int     `json:"ValueInMgPerDl"`
+			Value            float64 `json:"Value"`
+			TrendArrow       int     `json:"TrendArrow"`
+			TrendMessage     string  `json:"TrendMessage"`
+			MeasurementColor int     `json:"MeasurementColor"`
+			GlucoseUnits     int     `json:"GlucoseUnits"`
+			Timestamp        string  `json:"Timestamp"`
+			IsHigh           bool    `json:"isHigh"`
+			IsLow            bool    `json:"isLow"`
+		} `json:"glucoseMeasurement"`
+	} `json:"data"`
+}
+
+// GraphResponse represents the response from /llu/connections/{patientId}/graph endpoint.
+type GraphResponse struct {
+	Data struct {
+		Connection struct {
+			GlucoseMeasurement struct {
+				ValueInMgPerDl   int     `json:"ValueInMgPerDl"`
+				Value            float64 `json:"Value"`
+				TrendArrow       int     `json:"TrendArrow"`
+				MeasurementColor int     `json:"MeasurementColor"`
+				GlucoseUnits     int     `json:"GlucoseUnits"`
+				Timestamp        string  `json:"Timestamp"`
+				IsHigh           bool    `json:"isHigh"`
+				IsLow            bool    `json:"isLow"`
+			} `json:"glucoseMeasurement"`
+			Sensor struct {
+				DeviceID string `json:"deviceId"`
+				SN       string `json:"sn"`
+				A        int    `json:"a"`
+				W        int    `json:"w"`
+				PT       int    `json:"pt"`
+				S        bool   `json:"s"`
+				LJ       bool   `json:"lj"`
+			} `json:"sensor"`
+		} `json:"connection"`
+		GraphData []struct {
+			FactoryTimestamp string  `json:"FactoryTimestamp"`
+			Timestamp        string  `json:"Timestamp"`
+			ValueInMgPerDl   int     `json:"ValueInMgPerDl"`
+			Value            float64 `json:"Value"`
+			MeasurementColor int     `json:"MeasurementColor"`
+			GlucoseUnits     int     `json:"GlucoseUnits"`
+			IsHigh           bool    `json:"isHigh"`
+			IsLow            bool    `json:"isLow"`
+			Type             int     `json:"type"`
+		} `json:"graphData"`
+	} `json:"data"`
+}
+
+// GetConnections retrieves the current glucose measurement and patient information.
+//
+// This endpoint is used for periodic updates (every 5 minutes).
+func (c *Client) GetConnections(ctx context.Context, token, accountID string) (*ConnectionsResponse, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", c.baseURL+"/llu/connections", nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Set headers
+	req.Header.Set("User-Agent", c.userAgent)
+	req.Header.Set("Content-Type", "application/json;charset=UTF-8")
+	req.Header.Set("version", c.version)
+	req.Header.Set("product", c.product)
+	c.setAuthHeader(req, token, accountID)
+
+	var result ConnectionsResponse
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, &NetworkError{Err: err}
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	if err := decodeJSONResponse(resp, &result); err != nil {
+		return nil, err
+	}
+
+	return &result, nil
+}
+
+// GetGraph retrieves historical glucose data (approximately 12 hours).
+//
+// This endpoint is used for initial data population.
+func (c *Client) GetGraph(ctx context.Context, token, accountID, patientID string) (*GraphResponse, error) {
+	path := fmt.Sprintf("/llu/connections/%s/graph", patientID)
+	req, err := http.NewRequestWithContext(ctx, "GET", c.baseURL+path, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Set headers
+	req.Header.Set("User-Agent", c.userAgent)
+	req.Header.Set("Content-Type", "application/json;charset=UTF-8")
+	req.Header.Set("version", c.version)
+	req.Header.Set("product", c.product)
+	c.setAuthHeader(req, token, accountID)
+
+	var result GraphResponse
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, &NetworkError{Err: err}
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	if err := decodeJSONResponse(resp, &result); err != nil {
+		return nil, err
+	}
+
+	return &result, nil
+}
