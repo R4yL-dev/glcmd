@@ -361,7 +361,9 @@ func (d *Daemon) storeHistoricalMeasurement(point *struct {
 	return d.storage.SaveMeasurement(measurement)
 }
 
-// storeSensor stores sensor configuration.
+// storeSensor stores sensor configuration and handles sensor changes.
+// If a new sensor is detected (different serial number), marks the old sensor
+// as inactive and logs the change.
 func (d *Daemon) storeSensor(sensor *struct {
 	DeviceID string `json:"deviceId"`
 	SN       string `json:"sn"`
@@ -371,6 +373,26 @@ func (d *Daemon) storeSensor(sensor *struct {
 	S        bool   `json:"s"`
 	LJ       bool   `json:"lj"`
 }) error {
+	// Check for existing active sensor
+	currentSensor, err := d.storage.GetActiveSensor()
+	if err != nil {
+		// No active sensor or error reading - just store the new one
+		slog.Debug("no active sensor found, storing new sensor", "serialNumber", sensor.SN)
+	} else if currentSensor != nil && currentSensor.SerialNumber != sensor.SN {
+		// Sensor has changed - mark old sensor as inactive
+		slog.Info("sensor change detected",
+			"oldSerialNumber", currentSensor.SerialNumber,
+			"newSerialNumber", sensor.SN,
+			"oldActivation", currentSensor.Activation,
+		)
+
+		currentSensor.IsActive = false
+		if err := d.storage.SaveSensor(currentSensor); err != nil {
+			slog.Error("failed to deactivate old sensor", "error", err)
+			// Continue anyway - we still want to store the new sensor
+		}
+	}
+
 	// Convert Unix timestamp to time.Time (sensor.A is activation time)
 	activationTime := time.Unix(int64(sensor.A), 0).UTC()
 
