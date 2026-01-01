@@ -3,7 +3,6 @@ package libreclient
 import (
 	"context"
 	"fmt"
-	"net/http"
 )
 
 // ConnectionsResponse represents the response from /llu/connections endpoint.
@@ -66,33 +65,10 @@ type GraphResponse struct {
 //
 // This endpoint is used for periodic updates (every 5 minutes).
 func (c *Client) GetConnections(ctx context.Context, token, accountID string) (*ConnectionsResponse, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", c.baseURL+"/llu/connections", nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	// Set headers
-	req.Header.Set("User-Agent", c.userAgent)
-	req.Header.Set("Content-Type", "application/json;charset=UTF-8")
-	req.Header.Set("version", c.version)
-	req.Header.Set("product", c.product)
-	c.setAuthHeader(req, token, accountID)
-
 	var result ConnectionsResponse
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, &NetworkError{Err: err}
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
-	}
-
-	if err := decodeJSONResponse(resp, &result); err != nil {
+	if err := c.doRequest(ctx, "GET", "/llu/connections", nil, &result, token, accountID); err != nil {
 		return nil, err
 	}
-
 	return &result, nil
 }
 
@@ -101,32 +77,9 @@ func (c *Client) GetConnections(ctx context.Context, token, accountID string) (*
 // This endpoint is used for initial data population.
 func (c *Client) GetGraph(ctx context.Context, token, accountID, patientID string) (*GraphResponse, error) {
 	path := fmt.Sprintf("/llu/connections/%s/graph", patientID)
-	req, err := http.NewRequestWithContext(ctx, "GET", c.baseURL+path, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	// Set headers
-	req.Header.Set("User-Agent", c.userAgent)
-	req.Header.Set("Content-Type", "application/json;charset=UTF-8")
-	req.Header.Set("version", c.version)
-	req.Header.Set("product", c.product)
-	c.setAuthHeader(req, token, accountID)
-
 	var result GraphResponse
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, &NetworkError{Err: err}
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
-	}
-
-	if err := decodeJSONResponse(resp, &result); err != nil {
+	if err := c.doRequest(ctx, "GET", path, nil, &result, token, accountID); err != nil {
 		return nil, err
 	}
-
 	return &result, nil
 }

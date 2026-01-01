@@ -61,7 +61,9 @@ func NewClient(httpClient *http.Client) *Client {
 //   - Context cancellation/timeout
 //   - HTTP status codes (returns appropriate error types)
 //   - JSON decoding
-func (c *Client) doRequest(ctx context.Context, method, path string, body interface{}, result interface{}) error {
+//
+// Optional auth can be provided via token and accountID (pass empty strings to skip auth).
+func (c *Client) doRequest(ctx context.Context, method, path string, body interface{}, result interface{}, token, accountID string) error {
 	url := c.baseURL + path
 
 	var reqBody io.Reader
@@ -83,6 +85,11 @@ func (c *Client) doRequest(ctx context.Context, method, path string, body interf
 	req.Header.Set("Content-Type", "application/json;charset=UTF-8")
 	req.Header.Set("version", c.version)
 	req.Header.Set("product", c.product)
+
+	// Set auth headers if provided
+	if token != "" && accountID != "" {
+		c.setAuthHeader(req, token, accountID)
+	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {

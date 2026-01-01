@@ -293,8 +293,8 @@ func (d *Daemon) storeSensor(sensor *struct {
 	S        bool   `json:"s"`
 	LJ       bool   `json:"lj"`
 }) error {
-	// Use current time as activation time (we don't have exact activation time from API)
-	activationTime := time.Now().UTC()
+	// Convert Unix timestamp to time.Time (sensor.A is activation time)
+	activationTime := time.Unix(int64(sensor.A), 0).UTC()
 
 	sensorConfig := &models.SensorConfig{
 		SerialNumber: sensor.SN,

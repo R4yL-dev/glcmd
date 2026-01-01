@@ -43,6 +43,43 @@ func TestSaveMeasurement_NilError(t *testing.T) {
 	}
 }
 
+func TestSaveMeasurement_Deduplication(t *testing.T) {
+	storage := New()
+
+	timestamp := time.Now()
+
+	// Save first measurement
+	measurement1 := &glucosemeasurement.GlucoseMeasurement{
+		Timestamp: timestamp,
+		Value:     5.5,
+	}
+	err := storage.SaveMeasurement(measurement1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Try to save duplicate with same timestamp
+	measurement2 := &glucosemeasurement.GlucoseMeasurement{
+		Timestamp: timestamp,
+		Value:     6.0, // Different value but same timestamp
+	}
+	err = storage.SaveMeasurement(measurement2)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Should only have 1 measurement (duplicate ignored)
+	all, _ := storage.GetAllMeasurements()
+	if len(all) != 1 {
+		t.Errorf("expected 1 measurement (duplicate ignored), got %d", len(all))
+	}
+
+	// Verify the first one was kept
+	if all[0].Value != 5.5 {
+		t.Errorf("expected first measurement to be kept (Value=5.5), got %f", all[0].Value)
+	}
+}
+
 func TestGetLatestMeasurement_Empty(t *testing.T) {
 	storage := New()
 

@@ -34,7 +34,8 @@ func (c *Client) Authenticate(ctx context.Context, email, password string) (toke
 	}
 
 	var resp AuthResponse
-	if err := c.doRequest(ctx, "POST", "/llu/auth/login", creds, &resp); err != nil {
+	// No auth needed for login endpoint (empty strings for token/accountID)
+	if err := c.doRequest(ctx, "POST", "/llu/auth/login", creds, &resp, "", ""); err != nil {
 		return "", "", "", err
 	}
 

@@ -38,6 +38,7 @@ func New() *MemoryStorage {
 
 // SaveMeasurement stores a glucose measurement in memory.
 // Measurements are stored in chronological order.
+// Duplicates (same Timestamp) are ignored to prevent storing the same measurement twice.
 func (m *MemoryStorage) SaveMeasurement(measurement *glucosemeasurement.GlucoseMeasurement) error {
 	if measurement == nil {
 		return errors.New("measurement cannot be nil")
@@ -45,6 +46,15 @@ func (m *MemoryStorage) SaveMeasurement(measurement *glucosemeasurement.GlucoseM
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
+	// Check for duplicates by Timestamp
+	// This prevents storing the same measurement from /connections and /graph
+	for _, existing := range m.measurements {
+		if existing.Timestamp.Equal(measurement.Timestamp) {
+			// Measurement already exists, skip
+			return nil
+		}
+	}
 
 	m.measurements = append(m.measurements, measurement)
 	return nil
