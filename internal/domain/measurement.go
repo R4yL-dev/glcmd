@@ -2,6 +2,12 @@ package domain
 
 import "time"
 
+// Measurement type constants
+const (
+	MeasurementTypeHistorical = 0 // Historical measurement from /graph endpoint
+	MeasurementTypeCurrent    = 1 // Current measurement from /connections endpoint
+)
+
 // GlucoseMeasurement represents a glucose measurement from the LibreView API.
 //
 // Fields ending with "mmol" represent values in mmol/L

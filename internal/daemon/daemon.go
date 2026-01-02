@@ -36,26 +36,31 @@ import (
 // glucose data from the LibreView API.
 //
 // It manages:
-//   - A ticker for periodic fetching (default 5 minutes)
-//   - A ticker for periodic display (1 minute)
+//   - A ticker for periodic fetching (configurable via GLCMD_FETCH_INTERVAL)
+//   - A ticker for periodic display (configurable via GLCMD_DISPLAY_INTERVAL)
 //   - Context-based lifecycle management for graceful shutdown
 //   - Business logic services for persisting fetched data
 //   - Authentication with LibreView API
 type Daemon struct {
-	glucoseService service.GlucoseService
-	sensorService  service.SensorService
-	configService  service.ConfigService
-	ctx            context.Context
-	cancel         context.CancelFunc
-	ticker         *time.Ticker
-	displayTicker  *time.Ticker
-	interval       time.Duration
-	client         *libreclient.Client
-	email          string
-	password       string
-	token          string
-	accountID      string
-	patientID      string
+	glucoseService      service.GlucoseService
+	sensorService       service.SensorService
+	configService       service.ConfigService
+	ctx                 context.Context
+	cancel              context.CancelFunc
+	ticker              *time.Ticker
+	displayTicker       *time.Ticker
+	config              *Config
+	client              *libreclient.Client
+	email               string
+	password            string
+	token               string
+	accountID           string
+	patientID           string
+	consecutiveErrors    int       // Counter for consecutive fetch errors
+	maxConsecutiveErrors int       // Max allowed consecutive errors before alerting
+	lastFetchError       string    // Last fetch error message (empty if no error)
+	lastFetchTime        time.Time // Last successful fetch time
+	startTime            time.Time // Daemon start time
 }
 
 // New creates a new Daemon instance.
@@ -64,7 +69,7 @@ type Daemon struct {
 //   - glucoseService: Service for glucose measurement business logic
 //   - sensorService: Service for sensor management business logic
 //   - configService: Service for configuration management
-//   - interval: The time between fetch operations (e.g., 5*time.Minute)
+//   - config: Daemon configuration (intervals, emojis, etc.)
 //   - email: LibreView email for authentication
 //   - password: LibreView password for authentication
 //
@@ -74,7 +79,7 @@ func New(
 	glucoseService service.GlucoseService,
 	sensorService service.SensorService,
 	configService service.ConfigService,
-	interval time.Duration,
+	config *Config,
 	email string,
 	password string,
 ) (*Daemon, error) {
@@ -84,19 +89,27 @@ func New(
 	if password == "" {
 		return nil, fmt.Errorf("password cannot be empty")
 	}
+	if config == nil {
+		return nil, fmt.Errorf("config cannot be nil")
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &Daemon{
-		glucoseService: glucoseService,
-		sensorService:  sensorService,
-		configService:  configService,
-		ctx:            ctx,
-		cancel:         cancel,
-		interval:       interval,
-		client:         libreclient.NewClient(nil),
-		email:          email,
-		password:       password,
+		glucoseService:       glucoseService,
+		sensorService:        sensorService,
+		configService:        configService,
+		ctx:                  ctx,
+		cancel:               cancel,
+		config:               config,
+		client:               libreclient.NewClient(nil),
+		email:                email,
+		password:             password,
+		consecutiveErrors:    0,
+		maxConsecutiveErrors: 5, // Alert after 5 consecutive errors
+		lastFetchError:       "",
+		lastFetchTime:        time.Time{},
+		startTime:            time.Now(),
 	}, nil
 }
 
@@ -113,7 +126,11 @@ func New(
 //
 // Returns an error if the daemon cannot start or encounters a fatal error.
 func (d *Daemon) Run() error {
-	slog.Info("starting daemon", "interval", d.interval)
+	slog.Info("starting daemon",
+		"fetchInterval", d.config.FetchInterval,
+		"displayInterval", d.config.DisplayInterval,
+		"emojisEnabled", d.config.EnableEmojis,
+	)
 
 	// Step 1: Authenticate
 	slog.Info("authenticating with LibreView API")
@@ -130,14 +147,17 @@ func (d *Daemon) Run() error {
 	slog.Info("initial fetch completed successfully")
 
 	// Step 3: Start ticker for periodic fetches
-	d.ticker = time.NewTicker(d.interval)
+	d.ticker = time.NewTicker(d.config.FetchInterval)
 	defer d.ticker.Stop()
 
-	// Step 4: Start ticker for periodic display (every 1 minute)
-	d.displayTicker = time.NewTicker(1 * time.Minute)
+	// Step 4: Start ticker for periodic display
+	d.displayTicker = time.NewTicker(d.config.DisplayInterval)
 	defer d.displayTicker.Stop()
 
-	slog.Info("daemon started successfully", "interval", d.interval)
+	slog.Info("daemon started successfully",
+		"fetchInterval", d.config.FetchInterval,
+		"displayInterval", d.config.DisplayInterval,
+	)
 
 	// Step 5: Main loop - fetch periodically until stopped
 	for {
@@ -146,10 +166,34 @@ func (d *Daemon) Run() error {
 			// Time to fetch new data
 			slog.Info("fetching new measurement")
 			if err := d.fetch(); err != nil {
+				// Increment error counter
+				d.consecutiveErrors++
+				d.lastFetchError = err.Error()
+
 				// Log error but don't stop the daemon
 				// Network errors are expected and should not kill the daemon
-				slog.Error("fetch failed", "error", err)
+				slog.Error("fetch failed",
+					"error", err,
+					"consecutiveErrors", d.consecutiveErrors,
+				)
+
+				// Circuit breaker: alert after max consecutive errors
+				if d.consecutiveErrors >= d.maxConsecutiveErrors {
+					slog.Error("CRITICAL: max consecutive errors reached, daemon may be unhealthy",
+						"consecutiveErrors", d.consecutiveErrors,
+						"maxAllowed", d.maxConsecutiveErrors,
+					)
+				}
 			} else {
+				// Reset error counter on success
+				if d.consecutiveErrors > 0 {
+					slog.Info("fetch recovered after errors",
+						"previousConsecutiveErrors", d.consecutiveErrors,
+					)
+					d.consecutiveErrors = 0
+				}
+				d.lastFetchError = ""
+				d.lastFetchTime = time.Now()
 				slog.Info("measurement fetched successfully")
 			}
 
@@ -163,6 +207,39 @@ func (d *Daemon) Run() error {
 			return nil
 		}
 	}
+}
+
+// GetHealthStatus returns the current health status of the daemon.
+// This is used by the healthcheck HTTP endpoint.
+func (d *Daemon) GetHealthStatus() HealthStatus {
+	status := "healthy"
+
+	// Determine status based on consecutive errors
+	if d.consecutiveErrors >= d.maxConsecutiveErrors {
+		status = "unhealthy"
+	} else if d.consecutiveErrors > 0 {
+		status = "degraded"
+	}
+
+	return HealthStatus{
+		Status:            status,
+		Timestamp:         time.Now(),
+		Uptime:            time.Since(d.startTime).String(),
+		ConsecutiveErrors: d.consecutiveErrors,
+		LastFetchError:    d.lastFetchError,
+		LastFetchTime:     d.lastFetchTime,
+	}
+}
+
+// HealthStatus represents the daemon's health status.
+// This is exported for use by the healthcheck package.
+type HealthStatus struct {
+	Status            string    `json:"status"`
+	Timestamp         time.Time `json:"timestamp"`
+	Uptime            string    `json:"uptime"`
+	ConsecutiveErrors int       `json:"consecutiveErrors"`
+	LastFetchError    string    `json:"lastFetchError"`
+	LastFetchTime     time.Time `json:"lastFetchTime"`
 }
 
 // Stop initiates a graceful shutdown of the daemon.
@@ -262,7 +339,7 @@ func (d *Daemon) initialFetch() error {
 
 // fetch retrieves the latest glucose data from /connections.
 // Used for periodic updates (every 5 minutes).
-// If authentication fails (401), automatically re-authenticates and retries once.
+// If authentication fails (401), automatically re-authenticates with retry logic.
 func (d *Daemon) fetch() error {
 	ctx, cancel := context.WithTimeout(d.ctx, 30*time.Second)
 	defer cancel()
@@ -272,25 +349,49 @@ func (d *Daemon) fetch() error {
 		// Check if it's an authentication error
 		var authErr *libreclient.AuthError
 		if errors.As(err, &authErr) {
-			slog.Warn("authentication token expired, re-authenticating")
+			slog.Warn("authentication token expired, re-authenticating with retry")
 
-			// Re-authenticate
-			if err := d.authenticate(); err != nil {
-				slog.Error("re-authentication failed", "error", err)
-				return fmt.Errorf("re-authentication failed: %w", err)
+			// Re-authenticate with retry (max 3 attempts)
+			maxRetries := 3
+			var lastErr error
+			for attempt := 1; attempt <= maxRetries; attempt++ {
+				slog.Info("re-authentication attempt", "attempt", attempt, "maxRetries", maxRetries)
+
+				if err := d.authenticate(); err != nil {
+					lastErr = err
+					slog.Warn("re-authentication attempt failed",
+						"attempt", attempt,
+						"error", err,
+					)
+
+					// Exponential backoff: wait before retrying
+					if attempt < maxRetries {
+						backoff := time.Duration(attempt*attempt) * time.Second
+						slog.Info("waiting before retry", "backoff", backoff)
+						time.Sleep(backoff)
+					}
+					continue
+				}
+
+				// Re-authentication successful, retry the fetch
+				ctx, cancel := context.WithTimeout(d.ctx, 30*time.Second)
+				defer cancel()
+
+				connectionsResp, err = d.client.GetConnections(ctx, d.token, d.accountID)
+				if err != nil {
+					slog.Error("failed to get connections after re-authentication", "error", err)
+					return fmt.Errorf("failed to get connections after re-auth: %w", err)
+				}
+
+				slog.Info("re-authentication successful, fetch completed")
+				break
 			}
 
-			// Retry the fetch with new token
-			ctx, cancel := context.WithTimeout(d.ctx, 30*time.Second)
-			defer cancel()
-
-			connectionsResp, err = d.client.GetConnections(ctx, d.token, d.accountID)
-			if err != nil {
-				slog.Error("failed to get connections after re-authentication", "error", err)
-				return fmt.Errorf("failed to get connections after re-auth: %w", err)
+			// If all retry attempts failed
+			if lastErr != nil && connectionsResp == nil {
+				slog.Error("re-authentication failed after all retries", "attempts", maxRetries, "error", lastErr)
+				return fmt.Errorf("re-authentication failed after %d attempts: %w", maxRetries, lastErr)
 			}
-
-			slog.Info("re-authentication successful, fetch completed")
 		} else {
 			slog.Error("failed to get connections during periodic fetch", "error", err)
 			return fmt.Errorf("failed to get connections: %w", err)
@@ -342,7 +443,7 @@ func (d *Daemon) storeCurrentMeasurement(gm *struct {
 		GlucoseUnits:     gm.GlucoseUnits,
 		IsHigh:           gm.IsHigh,
 		IsLow:            gm.IsLow,
-		Type:             1, // Current measurement
+		Type:             domain.MeasurementTypeCurrent,
 	}
 
 	ctx, cancel := context.WithTimeout(d.ctx, 5*time.Second)
@@ -440,29 +541,55 @@ func (d *Daemon) displayLastMeasurement() {
 	// Build trend arrow display
 	trendArrowStr := ""
 	if measurement.TrendArrow != nil {
-		switch *measurement.TrendArrow {
-		case 1:
-			trendArrowStr = "⬇️⬇️"
-		case 2:
-			trendArrowStr = "⬇️"
-		case 3:
-			trendArrowStr = "➡️"
-		case 4:
-			trendArrowStr = "⬆️"
-		case 5:
-			trendArrowStr = "⬆️⬆️"
+		if d.config.EnableEmojis {
+			switch *measurement.TrendArrow {
+			case 1:
+				trendArrowStr = "⬇️⬇️"
+			case 2:
+				trendArrowStr = "⬇️"
+			case 3:
+				trendArrowStr = "➡️"
+			case 4:
+				trendArrowStr = "⬆️"
+			case 5:
+				trendArrowStr = "⬆️⬆️"
+			}
+		} else {
+			switch *measurement.TrendArrow {
+			case 1:
+				trendArrowStr = "Falling rapidly"
+			case 2:
+				trendArrowStr = "Falling"
+			case 3:
+				trendArrowStr = "Stable"
+			case 4:
+				trendArrowStr = "Rising"
+			case 5:
+				trendArrowStr = "Rising rapidly"
+			}
 		}
 	}
 
 	// Build status indicator
 	statusStr := ""
-	switch measurement.MeasurementColor {
-	case 1:
-		statusStr = "🟢 Normal"
-	case 2:
-		statusStr = "🟠 Warning"
-	case 3:
-		statusStr = "🔴 Critical"
+	if d.config.EnableEmojis {
+		switch measurement.MeasurementColor {
+		case 1:
+			statusStr = "🟢 Normal"
+		case 2:
+			statusStr = "🟠 Warning"
+		case 3:
+			statusStr = "🔴 Critical"
+		}
+	} else {
+		switch measurement.MeasurementColor {
+		case 1:
+			statusStr = "Normal"
+		case 2:
+			statusStr = "Warning"
+		case 3:
+			statusStr = "Critical"
+		}
 	}
 
 	// Log the measurement with all relevant information
