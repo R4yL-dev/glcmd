@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -8,8 +9,11 @@ import (
 	"time"
 
 	"github.com/R4yL-dev/glcmd/internal/daemon"
+	"github.com/R4yL-dev/glcmd/internal/domain"
 	"github.com/R4yL-dev/glcmd/internal/logger"
-	"github.com/R4yL-dev/glcmd/internal/storage/memory"
+	"github.com/R4yL-dev/glcmd/internal/persistence"
+	"github.com/R4yL-dev/glcmd/internal/repository"
+	"github.com/R4yL-dev/glcmd/internal/service"
 )
 
 func main() {
@@ -36,13 +40,60 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Create in-memory storage
-	storage := memory.New()
-	slog.Info("storage initialized", "type", "memory")
+	// Database setup
+	dbConfig := persistence.LoadDatabaseConfigFromEnv()
+	database, err := persistence.NewDatabase(dbConfig)
+	if err != nil {
+		slog.Error("failed to connect to database", "error", err)
+		os.Exit(1)
+	}
+	defer database.Close()
+
+	// Run migrations
+	if err := database.AutoMigrate(
+		&domain.GlucoseMeasurement{},
+		&domain.SensorConfig{},
+		&domain.UserPreferences{},
+		&domain.DeviceInfo{},
+		&domain.GlucoseTargets{},
+	); err != nil {
+		slog.Error("failed to run database migrations", "error", err)
+		os.Exit(1)
+	}
+
+	// Database health check
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := database.Ping(ctx); err != nil {
+		slog.Error("database health check failed", "error", err)
+		os.Exit(1)
+	}
+
+	slog.Info("database connected successfully",
+		"type", dbConfig.Type,
+		"path", dbConfig.SQLitePath,
+	)
+
+	// Create repositories
+	measurementRepo := repository.NewMeasurementRepository(database.DB())
+	sensorRepo := repository.NewSensorRepository(database.DB())
+	userRepo := repository.NewUserRepository(database.DB())
+	deviceRepo := repository.NewDeviceRepository(database.DB())
+	targetsRepo := repository.NewTargetsRepository(database.DB())
+
+	// Create Unit of Work
+	uow := repository.NewUnitOfWork(database.DB())
+
+	// Create services
+	glucoseService := service.NewGlucoseService(measurementRepo, slog.Default())
+	sensorService := service.NewSensorService(sensorRepo, uow, slog.Default())
+	configService := service.NewConfigService(userRepo, deviceRepo, targetsRepo, slog.Default())
+
+	slog.Info("services initialized successfully")
 
 	// Create daemon with 5-minute interval
 	interval := 5 * time.Minute
-	d, err := daemon.New(storage, interval, email, password)
+	d, err := daemon.New(glucoseService, sensorService, configService, interval, email, password)
 	if err != nil {
 		slog.Error("failed to create daemon", "error", err)
 		os.Exit(1)

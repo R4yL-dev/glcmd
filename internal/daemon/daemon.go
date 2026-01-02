@@ -26,10 +26,9 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/R4yL-dev/glcmd/internal/glucosemeasurement"
+	"github.com/R4yL-dev/glcmd/internal/domain"
 	"github.com/R4yL-dev/glcmd/internal/libreclient"
-	"github.com/R4yL-dev/glcmd/internal/models"
-	"github.com/R4yL-dev/glcmd/internal/storage"
+	"github.com/R4yL-dev/glcmd/internal/service"
 	"github.com/R4yL-dev/glcmd/internal/utils/timeparser"
 )
 
@@ -40,34 +39,45 @@ import (
 //   - A ticker for periodic fetching (default 5 minutes)
 //   - A ticker for periodic display (1 minute)
 //   - Context-based lifecycle management for graceful shutdown
-//   - Storage backend for persisting fetched data
+//   - Business logic services for persisting fetched data
 //   - Authentication with LibreView API
 type Daemon struct {
-	storage       storage.Storage
-	ctx           context.Context
-	cancel        context.CancelFunc
-	ticker        *time.Ticker
-	displayTicker *time.Ticker
-	interval      time.Duration
-	client        *libreclient.Client
-	email         string
-	password      string
-	token         string
-	accountID     string
-	patientID     string
+	glucoseService service.GlucoseService
+	sensorService  service.SensorService
+	configService  service.ConfigService
+	ctx            context.Context
+	cancel         context.CancelFunc
+	ticker         *time.Ticker
+	displayTicker  *time.Ticker
+	interval       time.Duration
+	client         *libreclient.Client
+	email          string
+	password       string
+	token          string
+	accountID      string
+	patientID      string
 }
 
 // New creates a new Daemon instance.
 //
 // Parameters:
-//   - storage: The storage backend for persisting data
+//   - glucoseService: Service for glucose measurement business logic
+//   - sensorService: Service for sensor management business logic
+//   - configService: Service for configuration management
 //   - interval: The time between fetch operations (e.g., 5*time.Minute)
 //   - email: LibreView email for authentication
 //   - password: LibreView password for authentication
 //
 // The daemon is created with a background context that can be cancelled
 // via the Stop() method for graceful shutdown.
-func New(storage storage.Storage, interval time.Duration, email string, password string) (*Daemon, error) {
+func New(
+	glucoseService service.GlucoseService,
+	sensorService service.SensorService,
+	configService service.ConfigService,
+	interval time.Duration,
+	email string,
+	password string,
+) (*Daemon, error) {
 	if email == "" {
 		return nil, fmt.Errorf("email cannot be empty")
 	}
@@ -78,13 +88,15 @@ func New(storage storage.Storage, interval time.Duration, email string, password
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &Daemon{
-		storage:  storage,
-		ctx:      ctx,
-		cancel:   cancel,
-		interval: interval,
-		client:   libreclient.NewClient(nil),
-		email:    email,
-		password: password,
+		glucoseService: glucoseService,
+		sensorService:  sensorService,
+		configService:  configService,
+		ctx:            ctx,
+		cancel:         cancel,
+		interval:       interval,
+		client:         libreclient.NewClient(nil),
+		email:          email,
+		password:       password,
 	}, nil
 }
 
@@ -319,7 +331,7 @@ func (d *Daemon) storeCurrentMeasurement(gm *struct {
 		trendMessage = &gm.TrendMessage
 	}
 
-	measurement := &glucosemeasurement.GlucoseMeasurement{
+	measurement := &domain.GlucoseMeasurement{
 		FactoryTimestamp: timestamp,
 		Timestamp:        timestamp,
 		Value:            gm.Value,
@@ -333,7 +345,10 @@ func (d *Daemon) storeCurrentMeasurement(gm *struct {
 		Type:             1, // Current measurement
 	}
 
-	return d.storage.SaveMeasurement(measurement)
+	ctx, cancel := context.WithTimeout(d.ctx, 5*time.Second)
+	defer cancel()
+
+	return d.glucoseService.SaveMeasurement(ctx, measurement)
 }
 
 // storeHistoricalMeasurement stores a historical measurement (from /graph).
@@ -358,7 +373,7 @@ func (d *Daemon) storeHistoricalMeasurement(point *struct {
 		return fmt.Errorf("failed to parse timestamp: %w", err)
 	}
 
-	measurement := &glucosemeasurement.GlucoseMeasurement{
+	measurement := &domain.GlucoseMeasurement{
 		FactoryTimestamp: factoryTimestamp,
 		Timestamp:        timestamp,
 		Value:            point.Value,
@@ -371,12 +386,15 @@ func (d *Daemon) storeHistoricalMeasurement(point *struct {
 		Type:             point.Type,
 	}
 
-	return d.storage.SaveMeasurement(measurement)
+	ctx, cancel := context.WithTimeout(d.ctx, 5*time.Second)
+	defer cancel()
+
+	return d.glucoseService.SaveMeasurement(ctx, measurement)
 }
 
 // storeSensor stores sensor configuration and handles sensor changes.
-// If a new sensor is detected (different serial number), marks the old sensor
-// as inactive and logs the change.
+// The sensor change detection logic (deactivating old sensor, activating new sensor)
+// is now handled by SensorService.HandleSensorChange() within a transaction.
 func (d *Daemon) storeSensor(sensor *struct {
 	DeviceID string `json:"deviceId"`
 	SN       string `json:"sn"`
@@ -386,30 +404,10 @@ func (d *Daemon) storeSensor(sensor *struct {
 	S        bool   `json:"s"`
 	LJ       bool   `json:"lj"`
 }) error {
-	// Check for existing active sensor
-	currentSensor, err := d.storage.GetActiveSensor()
-	if err != nil {
-		// No active sensor or error reading - just store the new one
-		slog.Debug("no active sensor found, storing new sensor", "serialNumber", sensor.SN)
-	} else if currentSensor != nil && currentSensor.SerialNumber != sensor.SN {
-		// Sensor has changed - mark old sensor as inactive
-		slog.Info("sensor change detected",
-			"oldSerialNumber", currentSensor.SerialNumber,
-			"newSerialNumber", sensor.SN,
-			"oldActivation", currentSensor.Activation,
-		)
-
-		currentSensor.IsActive = false
-		if err := d.storage.SaveSensor(currentSensor); err != nil {
-			slog.Error("failed to deactivate old sensor", "error", err)
-			// Continue anyway - we still want to store the new sensor
-		}
-	}
-
 	// Convert Unix timestamp to time.Time (sensor.A is activation time)
 	activationTime := time.Unix(int64(sensor.A), 0).UTC()
 
-	sensorConfig := &models.SensorConfig{
+	sensorConfig := &domain.SensorConfig{
 		SerialNumber: sensor.SN,
 		Activation:   activationTime,
 		DeviceID:     sensor.DeviceID,
@@ -420,13 +418,20 @@ func (d *Daemon) storeSensor(sensor *struct {
 		DetectedAt:   time.Now().UTC(),
 	}
 
-	return d.storage.SaveSensor(sensorConfig)
+	ctx, cancel := context.WithTimeout(d.ctx, 5*time.Second)
+	defer cancel()
+
+	// HandleSensorChange manages sensor change detection and deactivation atomically
+	return d.sensorService.HandleSensorChange(ctx, sensorConfig)
 }
 
 // displayLastMeasurement retrieves and displays the last recorded measurement.
 // This is called every minute by the displayTicker.
 func (d *Daemon) displayLastMeasurement() {
-	measurement, err := d.storage.GetLatestMeasurement()
+	ctx, cancel := context.WithTimeout(d.ctx, 5*time.Second)
+	defer cancel()
+
+	measurement, err := d.glucoseService.GetLatestMeasurement(ctx)
 	if err != nil {
 		slog.Warn("no measurement available to display", "error", err)
 		return
