@@ -6,6 +6,23 @@ This directory contains comprehensive documentation for the glcmd project, a Lib
 
 ## Documentation Files
 
+### [API.md](API.md)
+
+HTTP API reference documentation:
+- Complete endpoint specifications
+- Request/response formats
+- Query parameters and validation
+- Error handling
+- Pagination and filtering
+- Example curl commands
+- Complete usage script
+
+**Read this if you want to**:
+- Integrate with the glcmd API programmatically
+- Query glucose data via HTTP
+- Monitor daemon health and metrics
+- Build custom dashboards or integrations
+
 ### [ARCHITECTURE.md](ARCHITECTURE.md)
 
 Complete architectural overview covering:
