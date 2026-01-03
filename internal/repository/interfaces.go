@@ -7,6 +7,14 @@ import (
 	"github.com/R4yL-dev/glcmd/internal/domain"
 )
 
+// MeasurementFilters defines filter criteria for querying measurements
+type MeasurementFilters struct {
+	StartTime *time.Time
+	EndTime   *time.Time
+	Color     *int // 1=normal, 2=warning, 3=critical
+	Type      *int // 0=historical, 1=current
+}
+
 // MeasurementRepository defines the interface for glucose measurement persistence.
 type MeasurementRepository interface {
 	// Save creates or ignores a measurement (duplicate timestamps are silently ignored)
@@ -20,6 +28,12 @@ type MeasurementRepository interface {
 
 	// FindByTimeRange returns measurements within a time range (inclusive)
 	FindByTimeRange(ctx context.Context, start, end time.Time) ([]*domain.GlucoseMeasurement, error)
+
+	// FindWithFilters returns measurements matching filters with pagination
+	FindWithFilters(ctx context.Context, filters MeasurementFilters, limit, offset int) ([]*domain.GlucoseMeasurement, error)
+
+	// CountWithFilters returns total count of measurements matching filters
+	CountWithFilters(ctx context.Context, filters MeasurementFilters) (int64, error)
 }
 
 // SensorRepository defines the interface for sensor configuration persistence.

@@ -9,9 +9,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/R4yL-dev/glcmd/internal/api"
 	"github.com/R4yL-dev/glcmd/internal/daemon"
 	"github.com/R4yL-dev/glcmd/internal/domain"
-	"github.com/R4yL-dev/glcmd/internal/healthcheck"
 	"github.com/R4yL-dev/glcmd/internal/logger"
 	"github.com/R4yL-dev/glcmd/internal/persistence"
 	"github.com/R4yL-dev/glcmd/internal/repository"
@@ -113,23 +113,31 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Start healthcheck HTTP server (optional)
-	healthcheckPort := 8080 // Default port
-	if portStr := os.Getenv("GLCMD_HEALTHCHECK_PORT"); portStr != "" {
+	// Start unified API server on port 8080
+	apiPort := 8080 // Default port
+	if portStr := os.Getenv("GLCMD_API_PORT"); portStr != "" {
 		if port, err := strconv.Atoi(portStr); err == nil && port > 0 {
-			healthcheckPort = port
+			apiPort = port
 		}
 	}
 
-	healthServer := healthcheck.NewServer(healthcheckPort, func() interface{} {
-		return d.GetHealthStatus()
-	})
+	// Create unified API server with daemon health status callback
+	apiServer := api.NewServer(
+		apiPort,
+		glucoseService,
+		sensorService,
+		configService,
+		func() daemon.HealthStatus {
+			return d.GetHealthStatus()
+		},
+		slog.Default(),
+	)
 
-	if err := healthServer.Start(); err != nil {
-		slog.Error("failed to start healthcheck server", "error", err)
+	if err := apiServer.Start(); err != nil {
+		slog.Error("failed to start unified API server", "error", err)
 		os.Exit(1)
 	}
-	slog.Info("healthcheck server started", "port", healthcheckPort)
+	slog.Info("unified API server started", "port", apiPort)
 
 	// Setup signal handling for graceful shutdown
 	sigChan := make(chan os.Signal, 1)
@@ -149,11 +157,12 @@ func main() {
 		// Stop daemon
 		d.Stop()
 
-		// Stop healthcheck server
+		// Stop API server
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		if err := healthServer.Stop(ctx); err != nil {
-			slog.Error("failed to stop healthcheck server", "error", err)
+
+		if err := apiServer.Stop(ctx); err != nil {
+			slog.Error("failed to stop API server", "error", err)
 		}
 
 		// Wait for daemon to finish
@@ -165,10 +174,10 @@ func main() {
 		if err != nil {
 			slog.Error("daemon stopped with error", "error", err)
 
-			// Stop healthcheck server
+			// Stop API server
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
-			healthServer.Stop(ctx)
+			apiServer.Stop(ctx)
 
 			os.Exit(1)
 		}

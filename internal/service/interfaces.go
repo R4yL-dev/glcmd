@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/R4yL-dev/glcmd/internal/domain"
+	"github.com/R4yL-dev/glcmd/internal/repository"
 )
 
 // GlucoseService defines the interface for glucose measurement business logic.
@@ -20,6 +21,12 @@ type GlucoseService interface {
 
 	// GetMeasurementsByTimeRange returns measurements within a time range
 	GetMeasurementsByTimeRange(ctx context.Context, start, end time.Time) ([]*domain.GlucoseMeasurement, error)
+
+	// GetMeasurementsWithFilters returns filtered and paginated measurements with total count
+	GetMeasurementsWithFilters(ctx context.Context, filters repository.MeasurementFilters, limit, offset int) ([]*domain.GlucoseMeasurement, int64, error)
+
+	// GetStatistics calculates aggregated statistics for a time range
+	GetStatistics(ctx context.Context, start, end time.Time, targets *domain.GlucoseTargets) (*MeasurementStats, error)
 }
 
 // SensorService defines the interface for sensor management business logic.

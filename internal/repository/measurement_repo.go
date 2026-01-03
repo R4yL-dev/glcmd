@@ -82,3 +82,67 @@ func (r *MeasurementRepositoryGORM) FindByTimeRange(ctx context.Context, start, 
 
 	return measurements, nil
 }
+
+// FindWithFilters returns measurements matching filters with pagination.
+func (r *MeasurementRepositoryGORM) FindWithFilters(ctx context.Context, filters MeasurementFilters, limit, offset int) ([]*domain.GlucoseMeasurement, error) {
+	db := txOrDefault(ctx, r.db)
+
+	query := db.Model(&domain.GlucoseMeasurement{})
+
+	// Apply filters
+	if filters.StartTime != nil {
+		query = query.Where("timestamp >= ?", *filters.StartTime)
+	}
+	if filters.EndTime != nil {
+		query = query.Where("timestamp <= ?", *filters.EndTime)
+	}
+	if filters.Color != nil {
+		query = query.Where("measurement_color = ?", *filters.Color)
+	}
+	if filters.Type != nil {
+		query = query.Where("type = ?", *filters.Type)
+	}
+
+	var measurements []*domain.GlucoseMeasurement
+	result := query.
+		Order("timestamp DESC").
+		Limit(limit).
+		Offset(offset).
+		Find(&measurements)
+
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	return measurements, nil
+}
+
+// CountWithFilters returns total count of measurements matching filters.
+func (r *MeasurementRepositoryGORM) CountWithFilters(ctx context.Context, filters MeasurementFilters) (int64, error) {
+	db := txOrDefault(ctx, r.db)
+
+	query := db.Model(&domain.GlucoseMeasurement{})
+
+	// Apply filters
+	if filters.StartTime != nil {
+		query = query.Where("timestamp >= ?", *filters.StartTime)
+	}
+	if filters.EndTime != nil {
+		query = query.Where("timestamp <= ?", *filters.EndTime)
+	}
+	if filters.Color != nil {
+		query = query.Where("measurement_color = ?", *filters.Color)
+	}
+	if filters.Type != nil {
+		query = query.Where("type = ?", *filters.Type)
+	}
+
+	var count int64
+	result := query.Count(&count)
+
+	if result.Error != nil {
+		return 0, result.Error
+	}
+
+	return count, nil
+}
