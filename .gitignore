@@ -8,3 +8,8 @@ glcmd
 # Test coverage
 coverage.out
 coverage.html
+
+# Dossiers d'exploration avec données sensibles
+exploration/
+dumps/
+*.dump
