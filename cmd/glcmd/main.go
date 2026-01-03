@@ -5,11 +5,11 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
-	"strconv"
 	"syscall"
 	"time"
 
 	"github.com/R4yL-dev/glcmd/internal/api"
+	"github.com/R4yL-dev/glcmd/internal/config"
 	"github.com/R4yL-dev/glcmd/internal/daemon"
 	"github.com/R4yL-dev/glcmd/internal/domain"
 	"github.com/R4yL-dev/glcmd/internal/logger"
@@ -29,21 +29,15 @@ func main() {
 
 	slog.Info("glcmd starting")
 
-	// Get credentials from environment
-	email := os.Getenv("GLCMD_EMAIL")
-	if email == "" {
-		slog.Error("GLCMD_EMAIL environment variable is not set")
-		os.Exit(1)
-	}
-
-	password := os.Getenv("GLCMD_PASSWORD")
-	if password == "" {
-		slog.Error("GLCMD_PASSWORD environment variable is not set")
+	// Load centralized configuration
+	cfg, err := config.Load()
+	if err != nil {
+		slog.Error("failed to load configuration", "error", err)
 		os.Exit(1)
 	}
 
 	// Database setup
-	dbConfig := persistence.LoadDatabaseConfigFromEnv()
+	dbConfig := cfg.Database.ToPersistenceConfig()
 	database, err := persistence.NewDatabase(dbConfig)
 	if err != nil {
 		slog.Error("failed to connect to database", "error", err)
@@ -93,12 +87,8 @@ func main() {
 
 	slog.Info("services initialized successfully")
 
-	// Load daemon configuration
-	daemonConfig, err := daemon.LoadConfigFromEnv()
-	if err != nil {
-		slog.Error("failed to load daemon configuration", "error", err)
-		os.Exit(1)
-	}
+	// Convert daemon config
+	daemonConfig := cfg.Daemon.ToDaemonConfig()
 
 	slog.Info("daemon configuration loaded",
 		"fetchInterval", daemonConfig.FetchInterval,
@@ -107,28 +97,25 @@ func main() {
 	)
 
 	// Create daemon
-	d, err := daemon.New(glucoseService, sensorService, configService, daemonConfig, email, password)
+	d, err := daemon.New(glucoseService, sensorService, configService, daemonConfig, cfg.Credentials.Email, cfg.Credentials.Password)
 	if err != nil {
 		slog.Error("failed to create daemon", "error", err)
 		os.Exit(1)
 	}
 
-	// Start unified API server on port 8080
-	apiPort := 8080 // Default port
-	if portStr := os.Getenv("GLCMD_API_PORT"); portStr != "" {
-		if port, err := strconv.Atoi(portStr); err == nil && port > 0 {
-			apiPort = port
-		}
-	}
-
 	// Create unified API server with daemon health status callback
 	apiServer := api.NewServer(
-		apiPort,
+		cfg.API.Port,
 		glucoseService,
 		sensorService,
 		configService,
 		func() daemon.HealthStatus {
 			return d.GetHealthStatus()
+		},
+		func() bool {
+			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+			defer cancel()
+			return database.Ping(ctx) == nil
 		},
 		slog.Default(),
 	)
@@ -137,7 +124,7 @@ func main() {
 		slog.Error("failed to start unified API server", "error", err)
 		os.Exit(1)
 	}
-	slog.Info("unified API server started", "port", apiPort)
+	slog.Info("unified API server started", "port", cfg.API.Port)
 
 	// Setup signal handling for graceful shutdown
 	sigChan := make(chan os.Signal, 1)

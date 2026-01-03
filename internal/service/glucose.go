@@ -151,16 +151,16 @@ func (s *GlucoseServiceImpl) GetStatistics(ctx context.Context, start, end time.
 
 		// Count by color
 		switch m.MeasurementColor {
-		case 1:
+		case domain.MeasurementColorNormal:
 			stats.NormalCount++
-		case 2:
+		case domain.MeasurementColorWarning:
 			// Warning can be either low or high
 			if m.IsLow {
 				stats.LowCount++
 			} else {
 				stats.HighCount++
 			}
-		case 3:
+		case domain.MeasurementColorCritical:
 			// Critical can be either low or high
 			if m.IsLow {
 				stats.LowCount++

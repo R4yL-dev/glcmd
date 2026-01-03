@@ -9,6 +9,7 @@ import (
 
 	"github.com/R4yL-dev/glcmd/internal/domain"
 	"github.com/R4yL-dev/glcmd/internal/persistence"
+	"github.com/R4yL-dev/glcmd/internal/repository"
 )
 
 // MockMeasurementRepository for testing
@@ -17,6 +18,8 @@ type MockMeasurementRepository struct {
 	FindLatestFunc      func(ctx context.Context) (*domain.GlucoseMeasurement, error)
 	FindAllFunc         func(ctx context.Context) ([]*domain.GlucoseMeasurement, error)
 	FindByTimeRangeFunc func(ctx context.Context, start, end time.Time) ([]*domain.GlucoseMeasurement, error)
+	FindWithFiltersFunc func(ctx context.Context, filters repository.MeasurementFilters, limit, offset int) ([]*domain.GlucoseMeasurement, error)
+	CountWithFiltersFunc func(ctx context.Context, filters repository.MeasurementFilters) (int64, error)
 }
 
 func (m *MockMeasurementRepository) Save(ctx context.Context, measurement *domain.GlucoseMeasurement) error {
@@ -45,6 +48,20 @@ func (m *MockMeasurementRepository) FindByTimeRange(ctx context.Context, start, 
 		return m.FindByTimeRangeFunc(ctx, start, end)
 	}
 	return []*domain.GlucoseMeasurement{}, nil
+}
+
+func (m *MockMeasurementRepository) FindWithFilters(ctx context.Context, filters repository.MeasurementFilters, limit, offset int) ([]*domain.GlucoseMeasurement, error) {
+	if m.FindWithFiltersFunc != nil {
+		return m.FindWithFiltersFunc(ctx, filters, limit, offset)
+	}
+	return []*domain.GlucoseMeasurement{}, nil
+}
+
+func (m *MockMeasurementRepository) CountWithFilters(ctx context.Context, filters repository.MeasurementFilters) (int64, error) {
+	if m.CountWithFiltersFunc != nil {
+		return m.CountWithFiltersFunc(ctx, filters)
+	}
+	return 0, nil
 }
 
 func TestGlucoseService_SaveMeasurement_Success(t *testing.T) {

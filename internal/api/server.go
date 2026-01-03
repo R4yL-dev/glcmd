@@ -14,14 +14,15 @@ import (
 
 // Server represents the HTTP API server
 type Server struct {
-	httpServer      *http.Server
-	port            int
-	glucoseService  service.GlucoseService
-	sensorService   service.SensorService
-	configService   service.ConfigService
-	logger          *slog.Logger
-	getHealthStatus func() daemon.HealthStatus
-	startTime       time.Time
+	httpServer        *http.Server
+	port              int
+	glucoseService    service.GlucoseService
+	sensorService     service.SensorService
+	configService     service.ConfigService
+	logger            *slog.Logger
+	getHealthStatus   func() daemon.HealthStatus
+	getDatabaseHealth func() bool
+	startTime         time.Time
 }
 
 // NewServer creates a new API server instance
@@ -31,16 +32,18 @@ func NewServer(
 	sensorService service.SensorService,
 	configService service.ConfigService,
 	getHealthStatus func() daemon.HealthStatus,
+	getDatabaseHealth func() bool,
 	logger *slog.Logger,
 ) *Server {
 	s := &Server{
-		port:            port,
-		glucoseService:  glucoseService,
-		sensorService:   sensorService,
-		configService:   configService,
-		getHealthStatus: getHealthStatus,
-		startTime:       time.Now(),
-		logger:          logger,
+		port:              port,
+		glucoseService:    glucoseService,
+		sensorService:     sensorService,
+		configService:     configService,
+		getHealthStatus:   getHealthStatus,
+		getDatabaseHealth: getDatabaseHealth,
+		startTime:         time.Now(),
+		logger:            logger,
 	}
 
 	router := s.setupRouter()
@@ -61,21 +64,25 @@ func (s *Server) setupRouter() *chi.Mux {
 	r := chi.NewRouter()
 
 	// Middleware
+	r.Use(s.corsMiddleware)      // CORS must be first for preflight requests
 	r.Use(s.loggingMiddleware)
 	r.Use(s.recoveryMiddleware)
 	r.Use(s.timeoutMiddleware)
 
-	// Health and metrics routes
+	// Monitoring endpoints at root (no versioning for operational endpoints)
 	r.Get("/health", s.handleHealth)
 	r.Get("/metrics", s.handleMetrics)
 
-	// Measurement routes
-	r.Get("/measurements", s.handleGetMeasurements)
-	r.Get("/measurements/latest", s.handleGetLatestMeasurement)
-	r.Get("/measurements/stats", s.handleGetStatistics)
+	// API v1 routes (versioned)
+	r.Route("/v1", func(r chi.Router) {
+		// Measurement routes
+		r.Get("/measurements", s.handleGetMeasurements)
+		r.Get("/measurements/latest", s.handleGetLatestMeasurement)
+		r.Get("/measurements/stats", s.handleGetStatistics)
 
-	// Sensor routes
-	r.Get("/sensors", s.handleGetSensors)
+		// Sensor routes
+		r.Get("/sensors", s.handleGetSensors)
+	})
 
 	return r
 }
@@ -95,4 +102,9 @@ func (s *Server) Start() error {
 func (s *Server) Stop(ctx context.Context) error {
 	s.logger.Info("stopping API server")
 	return s.httpServer.Shutdown(ctx)
+}
+
+// HTTPHandler returns the HTTP handler for testing purposes
+func (s *Server) HTTPHandler() http.Handler {
+	return s.httpServer.Handler
 }

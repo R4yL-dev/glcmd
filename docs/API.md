@@ -1,6 +1,6 @@
 # HTTP API Documentation
 
-**Version**: 0.2.0
+**Version**: 0.3.0
 **Updated**: 2026-01-03
 **Status**: Stable
 
@@ -8,7 +8,33 @@ When running in daemon mode, `glcmd` provides a unified HTTP API server on port 
 
 ## API Stability
 
-All endpoints in this documentation are stable and part of the 0.2.0 API contract. Breaking changes will be documented in [CHANGELOG.md](../CHANGELOG.md) and trigger a minor version bump.
+All endpoints in this documentation are stable and part of the 0.3.0 API contract. Breaking changes will be documented in [CHANGELOG.md](../CHANGELOG.md) and trigger a minor version bump.
+
+## API Versioning
+
+**Data endpoints** are versioned using a URL prefix for API stability. The current version is `/v1`.
+
+**Versioned endpoints:**
+- `/v1/measurements`
+- `/v1/measurements/latest`
+- `/v1/measurements/stats`
+- `/v1/sensors`
+
+**Unversioned endpoints** (monitoring):
+- `/health` - Health check
+- `/metrics` - Runtime metrics
+
+This versioning strategy allows future API evolution while maintaining backward compatibility.
+
+## CORS Support
+
+The API includes Cross-Origin Resource Sharing (CORS) headers to enable web frontend access:
+- `Access-Control-Allow-Origin: *` - Allows all origins
+- `Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS`
+- `Access-Control-Allow-Headers: Content-Type, Authorization`
+- `Access-Control-Max-Age: 3600` - Preflight cache duration
+
+CORS preflight requests (`OPTIONS`) are handled automatically.
 
 ## Base URL
 
@@ -43,11 +69,11 @@ Error responses:
 
 **GET** `/health`
 
-Returns the daemon health status.
+Returns the daemon and database health status.
 
 **Response Codes:**
-- `200 OK` - Service is healthy
-- `503 Service Unavailable` - Service is degraded or unhealthy
+- `200 OK` - Service and database are healthy
+- `503 Service Unavailable` - Service is degraded, unhealthy, or database is disconnected
 
 **Response:**
 ```json
@@ -58,15 +84,20 @@ Returns the daemon health status.
     "uptime": "2h15m30s",
     "consecutiveErrors": 0,
     "lastFetchError": "",
-    "lastFetchTime": "2025-01-03T10:29:45Z"
+    "lastFetchTime": "2025-01-03T10:29:45Z",
+    "databaseConnected": true
   }
 }
 ```
 
 **Status Values:**
-- `healthy` - All systems operational
+- `healthy` - All systems operational and database connected
 - `degraded` - Some errors but still functional (1-2 consecutive errors)
-- `unhealthy` - Service experiencing issues (3+ consecutive errors)
+- `unhealthy` - Service experiencing issues (3+ consecutive errors) or database disconnected
+
+**Database Status:**
+- `databaseConnected: true` - Database is responsive
+- `databaseConnected: false` - Database connection failed (returns 503)
 
 **Example:**
 ```bash
@@ -114,7 +145,7 @@ curl http://localhost:8080/metrics | jq
 
 ### 3. Latest Measurement
 
-**GET** `/measurements/latest`
+**GET** `/v1/measurements/latest`
 
 Returns the most recent glucose measurement.
 
@@ -147,14 +178,14 @@ Returns the most recent glucose measurement.
 
 **Example:**
 ```bash
-curl http://localhost:8080/measurements/latest | jq
+curl http://localhost:8080/v1/measurements/latest | jq
 ```
 
 ---
 
 ### 4. Measurements List
 
-**GET** `/measurements`
+**GET** `/v1/measurements`
 
 Returns a paginated list of glucose measurements with optional filters.
 
@@ -194,26 +225,26 @@ Returns a paginated list of glucose measurements with optional filters.
 **Examples:**
 ```bash
 # Get first 50 measurements
-curl "http://localhost:8080/measurements?limit=50" | jq
+curl "http://localhost:8080/v1/measurements?limit=50" | jq
 
 # Get measurements from last 24 hours
 START=$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%SZ)
 END=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-curl "http://localhost:8080/measurements?start=$START&end=$END" | jq
+curl "http://localhost:8080/v1/measurements?start=$START&end=$END" | jq
 
 # Get only warning/critical measurements
-curl "http://localhost:8080/measurements?color=2" | jq
-curl "http://localhost:8080/measurements?color=3" | jq
+curl "http://localhost:8080/v1/measurements?color=2" | jq
+curl "http://localhost:8080/v1/measurements?color=3" | jq
 
 # Pagination example - get next page
-curl "http://localhost:8080/measurements?limit=100&offset=100" | jq
+curl "http://localhost:8080/v1/measurements?limit=100&offset=100" | jq
 ```
 
 ---
 
 ### 5. Statistics
 
-**GET** `/measurements/stats`
+**GET** `/v1/measurements/stats`
 
 Returns glucose statistics for a specified time period.
 
@@ -276,22 +307,22 @@ Returns glucose statistics for a specified time period.
 # Get statistics for last 7 days
 START=$(date -u -d '7 days ago' +%Y-%m-%dT%H:%M:%SZ)
 END=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-curl "http://localhost:8080/measurements/stats?start=$START&end=$END" | jq
+curl "http://localhost:8080/v1/measurements/stats?start=$START&end=$END" | jq
 
 # Get statistics for a specific day
-curl "http://localhost:8080/measurements/stats?start=2025-01-01T00:00:00Z&end=2025-01-01T23:59:59Z" | jq
+curl "http://localhost:8080/v1/measurements/stats?start=2025-01-01T00:00:00Z&end=2025-01-01T23:59:59Z" | jq
 
 # Get statistics for last 30 days
 START=$(date -u -d '30 days ago' +%Y-%m-%dT%H:%M:%SZ)
 END=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-curl "http://localhost:8080/measurements/stats?start=$START&end=$END" | jq
+curl "http://localhost:8080/v1/measurements/stats?start=$START&end=$END" | jq
 ```
 
 ---
 
 ### 6. Sensors
 
-**GET** `/sensors`
+**GET** `/v1/sensors`
 
 Returns information about all sensors and the currently active sensor.
 
@@ -334,7 +365,7 @@ Returns information about all sensors and the currently active sensor.
 
 **Example:**
 ```bash
-curl http://localhost:8080/sensors | jq
+curl http://localhost:8080/v1/sensors | jq
 ```
 
 ---

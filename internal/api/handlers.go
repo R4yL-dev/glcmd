@@ -170,16 +170,18 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	// Get health status from daemon
 	healthStatus := s.getHealthStatus()
 
-	// Determine HTTP status code based on daemon status
+	// Add database health check
+	healthStatus.DatabaseConnected = s.getDatabaseHealth()
+
+	// Determine HTTP status code based on daemon and database status
 	statusCode := http.StatusOK
-	switch healthStatus.Status {
-	case "degraded":
+	if !healthStatus.DatabaseConnected || healthStatus.Status == "unhealthy" {
 		statusCode = http.StatusServiceUnavailable
-	case "unhealthy":
+	} else if healthStatus.Status == "degraded" {
 		statusCode = http.StatusServiceUnavailable
-	case "healthy":
+	} else if healthStatus.Status == "healthy" {
 		statusCode = http.StatusOK
-	default:
+	} else {
 		// Unknown status - treat as unhealthy
 		statusCode = http.StatusServiceUnavailable
 	}

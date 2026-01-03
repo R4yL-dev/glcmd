@@ -8,6 +8,28 @@ const (
 	MeasurementTypeCurrent    = 1 // Current measurement from /connections endpoint
 )
 
+// MeasurementColor constants
+const (
+	MeasurementColorNormal   = 1 // 🟢 Normal glucose levels
+	MeasurementColorWarning  = 2 // 🟠 Warning - outside target range
+	MeasurementColorCritical = 3 // 🔴 Critical - dangerous levels
+)
+
+// TrendArrow constants
+const (
+	TrendArrowFallingRapidly = 1 // ⬇️⬇️ Falling rapidly
+	TrendArrowFalling        = 2 // ⬇️ Falling
+	TrendArrowStable         = 3 // ➡️ Stable
+	TrendArrowRising         = 4 // ⬆️ Rising
+	TrendArrowRisingRapidly  = 5 // ⬆️⬆️ Rising rapidly
+)
+
+// GlucoseUnits constants
+const (
+	GlucoseUnitsMmolL = 0 // mmol/L (millimoles per liter)
+	GlucoseUnitsMgDl  = 1 // mg/dL (milligrams per deciliter)
+)
+
 // GlucoseMeasurement represents a glucose measurement from the LibreView API.
 //
 // Fields ending with "mmol" represent values in mmol/L

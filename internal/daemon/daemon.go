@@ -28,6 +28,7 @@ import (
 
 	"github.com/R4yL-dev/glcmd/internal/domain"
 	"github.com/R4yL-dev/glcmd/internal/libreclient"
+	"github.com/R4yL-dev/glcmd/internal/logger"
 	"github.com/R4yL-dev/glcmd/internal/service"
 	"github.com/R4yL-dev/glcmd/internal/utils/timeparser"
 )
@@ -240,6 +241,7 @@ type HealthStatus struct {
 	ConsecutiveErrors int       `json:"consecutiveErrors"`
 	LastFetchError    string    `json:"lastFetchError"`
 	LastFetchTime     time.Time `json:"lastFetchTime"`
+	DatabaseConnected bool      `json:"databaseConnected"` // Database health status
 }
 
 // Stop initiates a graceful shutdown of the daemon.
@@ -276,7 +278,7 @@ func (d *Daemon) authenticate() error {
 	// userID is not the same as patientID, we'll get patientID from /connections
 	_ = userID
 
-	slog.Debug("authentication successful", "accountID", accountID)
+	slog.Debug("authentication successful", "accountID", logger.RedactSensitive(accountID))
 	return nil
 }
 
@@ -299,7 +301,7 @@ func (d *Daemon) initialFetch() error {
 	}
 
 	d.patientID = connectionsResp.Data[0].PatientID
-	slog.Debug("patient ID obtained", "patientID", d.patientID)
+	slog.Debug("patient ID obtained", "patientID", logger.RedactSensitive(d.patientID))
 
 	// Store current measurement from /connections
 	if err := d.storeCurrentMeasurement(&connectionsResp.Data[0].GlucoseMeasurement); err != nil {
@@ -543,28 +545,28 @@ func (d *Daemon) displayLastMeasurement() {
 	if measurement.TrendArrow != nil {
 		if d.config.EnableEmojis {
 			switch *measurement.TrendArrow {
-			case 1:
+			case domain.TrendArrowFallingRapidly:
 				trendArrowStr = "⬇️⬇️"
-			case 2:
+			case domain.TrendArrowFalling:
 				trendArrowStr = "⬇️"
-			case 3:
+			case domain.TrendArrowStable:
 				trendArrowStr = "➡️"
-			case 4:
+			case domain.TrendArrowRising:
 				trendArrowStr = "⬆️"
-			case 5:
+			case domain.TrendArrowRisingRapidly:
 				trendArrowStr = "⬆️⬆️"
 			}
 		} else {
 			switch *measurement.TrendArrow {
-			case 1:
+			case domain.TrendArrowFallingRapidly:
 				trendArrowStr = "Falling rapidly"
-			case 2:
+			case domain.TrendArrowFalling:
 				trendArrowStr = "Falling"
-			case 3:
+			case domain.TrendArrowStable:
 				trendArrowStr = "Stable"
-			case 4:
+			case domain.TrendArrowRising:
 				trendArrowStr = "Rising"
-			case 5:
+			case domain.TrendArrowRisingRapidly:
 				trendArrowStr = "Rising rapidly"
 			}
 		}
@@ -574,20 +576,20 @@ func (d *Daemon) displayLastMeasurement() {
 	statusStr := ""
 	if d.config.EnableEmojis {
 		switch measurement.MeasurementColor {
-		case 1:
+		case domain.MeasurementColorNormal:
 			statusStr = "🟢 Normal"
-		case 2:
+		case domain.MeasurementColorWarning:
 			statusStr = "🟠 Warning"
-		case 3:
+		case domain.MeasurementColorCritical:
 			statusStr = "🔴 Critical"
 		}
 	} else {
 		switch measurement.MeasurementColor {
-		case 1:
+		case domain.MeasurementColorNormal:
 			statusStr = "Normal"
-		case 2:
+		case domain.MeasurementColorWarning:
 			statusStr = "Warning"
-		case 3:
+		case domain.MeasurementColorCritical:
 			statusStr = "Critical"
 		}
 	}

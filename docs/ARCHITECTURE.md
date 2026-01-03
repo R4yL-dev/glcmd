@@ -1,6 +1,6 @@
 # Architecture Documentation
 
-**Version**: 0.2.0
+**Version**: 0.3.0
 **Updated**: 2026-01-03
 **For**: glcmd glucose monitoring daemon
 
@@ -162,9 +162,23 @@ Unified HTTP API server providing programmatic access to glucose data.
 - Independent lifecycle management
 - See [API.md](API.md) for complete endpoint specification
 
-## Recent Changes (v0.2.0)
+## Recent Changes (v0.3.0)
 
-### API Unification
+### API Versioning and Stability
+- All data endpoints now versioned with `/v1` prefix for API stability
+- Monitoring endpoints (`/health`, `/metrics`) remain unversioned at root level
+- CORS middleware added for web frontend compatibility
+- Enhanced health check includes database connectivity status
+
+### Configuration and Code Quality
+- Centralized configuration in `internal/config` package with unified validation
+- Domain constants for measurement colors, trend arrows, and glucose units
+- Comprehensive end-to-end tests covering full API → Service → Repository → Database flow
+- Improved security: credentials and tokens masked in logs
+
+### Previous Changes (v0.2.0)
+
+#### API Unification
 - Consolidated separate health/metrics servers into single unified server
 - All endpoints now on port 8080
 - Simplifies deployment and monitoring configuration

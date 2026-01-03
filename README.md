@@ -2,7 +2,7 @@
 
 ## Overview
 
-**Version**: 0.2.0
+**Version**: 0.3.0
 **Date**: 2026-01-03
 
 glcmd is a command-line daemon for retrieving and monitoring blood glucose data from the LibreView API using LibreLinkUp follower account credentials. It provides continuous glucose monitoring in the terminal with local SQLite persistence and an HTTP REST API for programmatic access.
@@ -134,14 +134,19 @@ The daemon:
 
 The daemon exposes a REST API on port 8080 for programmatic access to glucose data.
 
+All data endpoints are versioned with the `/v1` prefix for API stability.
+
 ### Available Endpoints
 
-- `GET /health` - Daemon health status
+**Monitoring endpoints** (unversioned):
+- `GET /health` - Daemon and database health status
 - `GET /metrics` - Runtime metrics (uptime, memory, goroutines)
-- `GET /measurements/latest` - Most recent glucose reading
-- `GET /measurements` - Paginated measurements with filters
-- `GET /measurements/stats` - Statistics with time-in-range analysis
-- `GET /sensors` - Sensor information
+
+**Data endpoints** (versioned):
+- `GET /v1/measurements/latest` - Most recent glucose reading
+- `GET /v1/measurements` - Paginated measurements with filters
+- `GET /v1/measurements/stats` - Statistics with time-in-range analysis
+- `GET /v1/sensors` - Sensor information
 
 ### Example API Calls
 
@@ -179,7 +184,7 @@ $ curl http://localhost:8080/metrics | jq
 }
 
 # Latest glucose measurement
-$ curl http://localhost:8080/measurements/latest | jq
+$ curl http://localhost:8080/v1/measurements/latest | jq
 {
   "data": {
     "timestamp": "2026-01-03T02:31:27Z",
@@ -193,7 +198,7 @@ $ curl http://localhost:8080/measurements/latest | jq
 }
 
 # Sensor information
-$ curl http://localhost:8080/sensors | jq
+$ curl http://localhost:8080/v1/sensors | jq
 {
   "data": {
     "sensors": [
