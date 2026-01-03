@@ -1,5 +1,8 @@
 # Environment Variables
 
+**Version**: 0.2.0
+**Updated**: 2026-01-03
+
 ## Overview
 
 glcmd is configured via environment variables for flexibility across different deployment environments (development, production, containers). All variables have sensible defaults.
@@ -85,21 +88,25 @@ GLCMD_ENABLE_EMOJIS=false
 
 ---
 
-### GLCMD_HEALTHCHECK_PORT
-- **Description**: HTTP port for healthcheck and metrics endpoints
+### GLCMD_API_PORT
+- **Description**: HTTP port for unified API server (health, metrics, glucose endpoints)
 - **Default**: `8080`
-- **Example**: `GLCMD_HEALTHCHECK_PORT=9090`
+- **Example**: `GLCMD_API_PORT=9090`
 - **Endpoints**:
   - `GET /health` - Health status (returns 200 if healthy, 503 if degraded/unhealthy)
   - `GET /metrics` - Runtime metrics (memory, goroutines, uptime)
+  - `GET /measurements/latest` - Latest glucose measurement
+  - `GET /measurements` - Paginated measurements
+  - `GET /measurements/stats` - Statistics with time-in-range
+  - `GET /sensors` - Sensor information
 
 **Usage**:
 ```bash
 # Default port
-GLCMD_HEALTHCHECK_PORT=8080
+GLCMD_API_PORT=8080
 
 # Custom port
-GLCMD_HEALTHCHECK_PORT=9090
+GLCMD_API_PORT=9090
 
 # Check health
 curl http://localhost:8080/health
@@ -302,34 +309,6 @@ GLCMD_DB_LOG_LEVEL=info
 
 ---
 
-## Application Configuration
-
-These variables are application-specific (not database-related) and are documented here for completeness.
-
-### GLCMD_EMAIL
-- **Description**: LibreView account email
-- **Required**: Yes
-- **Example**: `GLCMD_EMAIL=user@example.com`
-
----
-
-### GLCMD_PASSWORD
-- **Description**: LibreView account password
-- **Required**: Yes
-- **Example**: `GLCMD_PASSWORD=your_password_here`
-- **Security**: Store securely, use secrets management in production
-
----
-
-### GLCMD_INTERVAL
-- **Description**: Polling interval for API requests
-- **Default**: `5m` (5 minutes)
-- **Example**: `GLCMD_INTERVAL=10m`
-- **Format**: Valid Go duration string
-- **Recommendation**: Don't set below 1m to avoid API rate limiting
-
----
-
 ## Configuration Examples
 
 ### Development (SQLite)
@@ -347,7 +326,8 @@ DB_RETRY_INITIAL_BACKOFF=50ms
 # Application
 GLCMD_EMAIL=dev@example.com
 GLCMD_PASSWORD=dev_password
-GLCMD_INTERVAL=5m
+GLCMD_FETCH_INTERVAL=5m
+GLCMD_API_PORT=8080
 ```
 
 ### Production (SQLite)
@@ -368,7 +348,8 @@ DB_RETRY_MAX_BACKOFF=500ms
 # Application
 GLCMD_EMAIL=user@example.com
 GLCMD_PASSWORD=secure_password
-GLCMD_INTERVAL=5m
+GLCMD_FETCH_INTERVAL=5m
+GLCMD_API_PORT=8080
 ```
 
 ### Production (PostgreSQL - Future)
@@ -398,7 +379,8 @@ DB_RETRY_MULTIPLIER=2.0
 # Application
 GLCMD_EMAIL=user@example.com
 GLCMD_PASSWORD=secure_password
-GLCMD_INTERVAL=5m
+GLCMD_FETCH_INTERVAL=5m
+GLCMD_API_PORT=8080
 ```
 
 ### Docker Compose Example
@@ -441,7 +423,10 @@ services:
       # Application
       GLCMD_EMAIL: ${LIBREVIEW_EMAIL}
       GLCMD_PASSWORD: ${LIBREVIEW_PASSWORD}
-      GLCMD_INTERVAL: 5m
+      GLCMD_FETCH_INTERVAL: 5m
+      GLCMD_API_PORT: 8080
+    ports:
+      - "8080:8080"
     restart: unless-stopped
 
 volumes:
@@ -474,7 +459,8 @@ GLCMD_DB_PATH=./data/glcmd.db
 GLCMD_DB_LOG_LEVEL=info
 GLCMD_EMAIL=user@example.com
 GLCMD_PASSWORD=password
-GLCMD_INTERVAL=5m
+GLCMD_FETCH_INTERVAL=5m
+GLCMD_API_PORT=8080
 ```
 
 ### Systemd Service Example
@@ -496,9 +482,10 @@ Environment="GLCMD_DB_PATH=/var/lib/glcmd/glcmd.db"
 Environment="GLCMD_DB_LOG_LEVEL=warn"
 Environment="GLCMD_EMAIL=user@example.com"
 Environment="GLCMD_PASSWORD=password"
-Environment="GLCMD_INTERVAL=5m"
+Environment="GLCMD_FETCH_INTERVAL=5m"
+Environment="GLCMD_API_PORT=8080"
 
-ExecStart=/opt/glcmd/glcmd daemon
+ExecStart=/opt/glcmd/glcmd
 Restart=always
 RestartSec=10
 
@@ -630,6 +617,26 @@ GLCMD_DB_SSLMODE=require
 ./glcmd daemon
 ```
 
+## Upgrading from v0.1.x to v0.2.0
+
+### Environment Variable Changes
+
+The following environment variables have been renamed for clarity and consistency:
+
+- `GLCMD_HEALTHCHECK_PORT` → `GLCMD_API_PORT` (same functionality, renamed for clarity)
+- `GLCMD_INTERVAL` → `GLCMD_FETCH_INTERVAL` (if using legacy variable)
+
+All other variables remain compatible. Update your configuration files and deployment scripts accordingly.
+
+### API Changes
+
+- All API endpoints now unified on single port (default: 8080)
+- No breaking changes to endpoint specifications
+- See [API Documentation](API.md) for complete current specification
+- See [CHANGELOG](../CHANGELOG.md) for detailed list of all changes
+
+---
+
 ## Reference: Default Values Summary
 
 | Variable | Default | Type |
@@ -650,3 +657,7 @@ GLCMD_DB_SSLMODE=require
 | DB_RETRY_INITIAL_BACKOFF | `100ms` | duration |
 | DB_RETRY_MAX_BACKOFF | `500ms` | duration |
 | DB_RETRY_MULTIPLIER | `2.0` | float |
+| GLCMD_FETCH_INTERVAL | `5m` | duration |
+| GLCMD_DISPLAY_INTERVAL | `1m` | duration |
+| GLCMD_ENABLE_EMOJIS | `true` | boolean |
+| GLCMD_API_PORT | `8080` | int |

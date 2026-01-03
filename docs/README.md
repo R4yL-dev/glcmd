@@ -1,5 +1,8 @@
 # glcmd Documentation
 
+**Version**: 0.2.0
+**Updated**: 2026-01-03
+
 ## Overview
 
 This directory contains comprehensive documentation for the glcmd project, a LibreView glucose monitoring daemon with GORM-based persistence.
@@ -77,14 +80,15 @@ Environment variable configuration reference:
    ```bash
    export GLCMD_EMAIL=your-email@example.com
    export GLCMD_PASSWORD=your-password
-   export DB_TYPE=sqlite
-   export DB_SQLITE_PATH=./data/glcmd.db
-   export DB_LOG_LEVEL=info
+   export GLCMD_DB_TYPE=sqlite
+   export GLCMD_DB_PATH=./data/glcmd.db
+   export GLCMD_DB_LOG_LEVEL=info
+   export GLCMD_API_PORT=8080
    ```
 
 4. **Run daemon**:
    ```bash
-   ./glcmd daemon
+   ./glcmd
    ```
 
 ### Running Tests
@@ -115,6 +119,8 @@ cmd/glcmd (entry point)
     ↓
 internal/daemon (API polling)
     ↓
+internal/api (unified HTTP server on port 8080)
+    ↓
 internal/service (business logic)
     ↓
 internal/repository (data access)
@@ -125,6 +131,7 @@ internal/domain (models)
 ```
 
 **Key Features**:
+- Unified HTTP API server on port 8080
 - SQLite with WAL mode (current)
 - PostgreSQL ready (future)
 - ACID transactions via Unit of Work

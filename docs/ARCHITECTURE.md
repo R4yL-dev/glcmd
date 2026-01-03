@@ -1,5 +1,9 @@
 # Architecture Documentation
 
+**Version**: 0.2.0
+**Updated**: 2026-01-03
+**For**: glcmd glucose monitoring daemon
+
 ## Overview
 
 glcmd is a LibreView glucose monitoring daemon built with a clean, layered architecture designed for maintainability and future scalability. The application polls the LibreView API every 5 minutes and persists glucose measurements, sensor configurations, and user preferences to a SQLite database.
@@ -140,6 +144,44 @@ Orchestrates API polling and data persistence.
 **Context Management**:
 - All service calls include context.WithTimeout (5 seconds)
 - Graceful shutdown via context cancellation
+
+### 6. API Layer (`internal/api`)
+
+Unified HTTP API server providing programmatic access to glucose data.
+
+**Responsibilities**:
+- Serves unified REST API on port 8080 (configurable via `GLCMD_API_PORT`)
+- Exposes 6 endpoints: health, metrics, latest measurement, measurements list, statistics, sensors
+- Applies middleware: logging, recovery, timeout enforcement
+- Delegates data access to services
+- Formats responses as consistent JSON
+
+**Integration**:
+- Started alongside daemon in main.go
+- Shares service layer with daemon
+- Independent lifecycle management
+- See [API.md](API.md) for complete endpoint specification
+
+## Recent Changes (v0.2.0)
+
+### API Unification
+- Consolidated separate health/metrics servers into single unified server
+- All endpoints now on port 8080
+- Simplifies deployment and monitoring configuration
+- Reduces resource overhead
+
+### Testing Improvements
+- Comprehensive test suite for critical components
+- Focus on transaction safety and data integrity
+- Unit of Work transaction tests
+- Repository integration tests with in-memory SQLite
+- Retry logic verification
+
+### Architecture Refinements
+- Structured logging with slog throughout codebase
+- Enhanced error handling with context propagation
+- Database health checks on startup
+- Circuit breaker pattern for API resilience
 
 ## Key Patterns
 
@@ -346,11 +388,16 @@ All errors wrapped with context using `fmt.Errorf()` and `%w` verb for error cha
 
 ## Future Enhancements
 
-### Potential Additions
+### Planned for v0.3.0
+- ASCII graph visualization of glucose trends in terminal
+- Real-time notifications for critical glucose levels
+- PostgreSQL migration for production deployments with migration guide
+
+### Under Consideration
 - SQL migration tool (e.g., golang-migrate) for versioned schema changes
-- Prometheus metrics for monitoring
+- Prometheus metrics export for monitoring integration
 - Read replicas support for PostgreSQL
-- Connection pool tuning for PostgreSQL
+- Connection pool tuning for high-traffic PostgreSQL deployments
 - Query result caching for frequently accessed data
 - Batch insert optimization for historical data imports
 

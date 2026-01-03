@@ -1,6 +1,14 @@
-# API Documentation
+# HTTP API Documentation
+
+**Version**: 0.2.0
+**Updated**: 2026-01-03
+**Status**: Stable
 
 When running in daemon mode, `glcmd` provides a unified HTTP API server on port 8080 (configurable via `GLCMD_API_PORT`). All endpoints return JSON responses with consistent formatting and pass through logging, recovery, and timeout middlewares.
+
+## API Stability
+
+All endpoints in this documentation are stable and part of the 0.2.0 API contract. Breaking changes will be documented in [CHANGELOG.md](../CHANGELOG.md) and trigger a minor version bump.
 
 ## Base URL
 

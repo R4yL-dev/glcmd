@@ -1,121 +1,91 @@
 # glcmd
 
-## 🎯 About
+## Overview
 
-**Version**: 0.1.1
-**Date**: 2025-05-04
+**Version**: 0.2.0
+**Date**: 2026-01-03
 
-`glcmd` is a command-line tool designed to retrieve and display blood glucose information from the **LibreView API** using a **LibreLinkUp follower account**. It allows users to quickly and easily monitor their glucose levels directly in the terminal, without the need for proprietary apps.
+glcmd is a command-line daemon for retrieving and monitoring blood glucose data from the LibreView API using LibreLinkUp follower account credentials. It provides continuous glucose monitoring in the terminal with local SQLite persistence and an HTTP REST API for programmatic access.
 
-This tool is ideal for people who want to have more control and flexibility over their glucose data, providing a simple, open-source alternative for tracking and displaying their measurements.
+The daemon polls the LibreView API at configurable intervals, stores measurements in a local database, and exposes glucose data through a unified HTTP API server.
 
-### 🌟 Key Features
+## Features
 
-- **Retrieve current glucose readings** from the LibreView API using a **follower account**.
-- **Display glucose levels** in the terminal in a human-readable format (mmol/L).
-- **Daemon mode** for continuous monitoring with automatic polling every 5 minutes.
-- **Database persistence** with SQLite (PostgreSQL ready for containerized deployments).
-- **Automatic sensor change detection** and historical data import.
-- **HTTP REST API** with health checks, metrics, and comprehensive glucose data endpoints.
-- **Robust architecture** with retry logic, transactions, and context-based timeout management.
-- **Open-source**: freely available to use, modify, and contribute to.
-- **Planned improvements**:
-  - ASCII graph to visualize glucose trends in terminal.
-  - Real-time notifications for critical glucose levels.
+- Continuous glucose monitoring via LibreView API follower account
+- Daemon mode with automatic polling (default: 5 minutes)
+- Local database persistence (SQLite default, PostgreSQL supported)
+- Automatic sensor change detection with historical data import
+- HTTP REST API with 6 endpoints (health, metrics, measurements, statistics, sensors)
+- Robust architecture with retry logic, transactions, and graceful shutdown
+- Structured logging with configurable output
+- Open-source under MIT license
 
-### 💡 Why `glcmd`?
+## Prerequisites
 
-Managing diabetes requires constant tracking and monitoring of glucose levels. `glcmd` was created to offer users a lightweight, no-frills tool to access their glucose data without being tied to a proprietary platform or app. It aims to give people more flexibility, transparency, and control over their health data in a simple command-line interface.
+- Go 1.24.1 or higher
+- CGO enabled (required for SQLite driver)
+- GCC or compatible C compiler
+  - Linux: `build-essential` package
+  - macOS: Xcode Command Line Tools
 
-## 📦 Prerequisites
+Tested on Linux. Should work on macOS with prerequisites installed.
 
-- **Go** 1.24.1 or higher
-- **CGO** enabled (required for SQLite driver)
-- **GCC** or compatible C compiler (Linux: `build-essential`, macOS: Xcode Command Line Tools)
-
-> 🚨 This project has been tested on **Linux** and should work on **macOS** with the prerequisites installed.
-> `make install` places the binary in `/usr/local/bin`. If this folder does not exist on macOS, simply compile it with `make` and move the binary to a folder included in your `PATH`.
-
-## ⚙️ Setup
-
-Before using `glcmd`, you need to configure your LibreView credentials.
+## Configuration
 
 ### Required Credentials
 
-These credentials must belong to a **follower account** — meaning an associated device account (not your primary patient account from the Libre 3 app).
-The follower account must be added as an associated device in the Libre 3 application.
-Using direct patient account credentials will not work.
+Set the following environment variables with LibreLinkUp follower account credentials:
 
-Set the following environment variables:
-- `GLCMD_EMAIL`: Your LibreView follower account email
-- `GLCMD_PASSWORD`: Your LibreView follower account password
+```bash
+export GLCMD_EMAIL='follower@example.com'
+export GLCMD_PASSWORD='your_password'
+```
+
+**Important**: Credentials must be from a LibreLinkUp follower account, not the primary patient account from the Libre 3 app.
 
 ### Optional Configuration
 
-For complete database and daemon configuration, see the [Environment Variables documentation](docs/ENV_VARS.md).
+Common daemon settings:
+- `GLCMD_FETCH_INTERVAL`: Polling interval (default: `5m`)
+- `GLCMD_DISPLAY_INTERVAL`: Display interval (default: `1m`)
+- `GLCMD_ENABLE_EMOJIS`: Enable emoji display (default: `true`)
+- `GLCMD_API_PORT`: HTTP API port (default: `8080`)
 
-**Common daemon settings**:
-- `GLCMD_FETCH_INTERVAL`: How often to fetch data from LibreView API (default: `5m`)
-- `GLCMD_DISPLAY_INTERVAL`: How often to display latest measurement (default: `1m`)
-- `GLCMD_ENABLE_EMOJIS`: Enable emoji display in logs (default: `true`)
-- `GLCMD_API_PORT`: HTTP port for unified API server (default: `8080`)
-
-**Database settings**:
+Database settings:
 - `GLCMD_DB_TYPE`: Database type (`sqlite` or `postgres`, default: `sqlite`)
-- `GLCMD_DB_PATH`: Path to SQLite database (default: `./data/glcmd.db`)
-- `GLCMD_DB_LOG_LEVEL`: GORM log level (`silent`, `error`, `warn`, `info`, default: `warn`)
+- `GLCMD_DB_PATH`: SQLite database path (default: `./data/glcmd.db`)
+- `GLCMD_DB_LOG_LEVEL`: GORM log level (default: `warn`)
 
-## 🚀 Install & Usage
+For complete configuration options, see [Environment Variables documentation](docs/ENV_VARS.md).
 
-### Quick Start (One-time Query)
+## Installation
 
-```bash
-export GLCMD_EMAIL='<email>'
-export GLCMD_PASSWORD='<password>'
-git clone https://github.com/R4yL-dev/glcmd.git
-cd glcmd
-make
-./bin/glcmd
-🩸 7.7(mmol/L) 🡒
-```
-
-### Daemon Mode (Continuous Monitoring)
+### Quick Start
 
 ```bash
 # Set credentials
-export GLCMD_EMAIL='<email>'
-export GLCMD_PASSWORD='<password>'
+export GLCMD_EMAIL='follower@example.com'
+export GLCMD_PASSWORD='password'
 
-# Optional: Configure database
-export GLCMD_DB_TYPE=sqlite
-export GLCMD_DB_PATH=./data/glcmd.db
-export GLCMD_DB_LOG_LEVEL=warn
+# Clone and build
+git clone https://github.com/R4yL-dev/glcmd.git
+cd glcmd
+make
 
 # Create data directory
 mkdir -p data
 
-# Build and run daemon
-make
-./bin/glcmd daemon
+# Run daemon
+./bin/glcmd
 ```
 
-**Daemon features**:
-- Polls LibreView API every 5 minutes (configurable via `GLCMD_FETCH_INTERVAL`)
-- Stores measurements, sensor info, and preferences in SQLite database
-- Displays latest glucose reading every minute (configurable via `GLCMD_DISPLAY_INTERVAL`)
-- Automatically detects sensor changes
-- Imports historical data on first run
-- Persists data across restarts
-- **HTTP API server** on port 8080 with health, metrics, and data endpoints (see [API Documentation](#-api-documentation))
-- Circuit breaker with automatic error recovery
-
-### Build & Install
+### Build Commands
 
 ```bash
-# Build only
+# Build binary to bin/glcmd
 make
 
-# Build and install to /usr/local/bin
+# Install to /usr/local/bin
 make install
 
 # Run tests
@@ -125,25 +95,47 @@ make test
 make clean
 ```
 
-## 🌐 HTTP API
+## Usage
 
-When running in daemon mode, `glcmd` exposes a REST API on port 8080 for programmatic access to glucose data, health checks, and metrics.
+glcmd runs exclusively in daemon mode. Start the daemon with:
 
-**Quick Examples:**
 ```bash
-# Health check
-curl http://localhost:8080/health | jq
-
-# Get latest glucose measurement
-curl http://localhost:8080/measurements/latest | jq
-
-# Get statistics for last 7 days
-START=$(date -u -d '7 days ago' +%Y-%m-%dT%H:%M:%SZ)
-END=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-curl "http://localhost:8080/measurements/stats?start=$START&end=$END" | jq
+./bin/glcmd
 ```
 
-**Available Endpoints:**
+### Example Output
+
+```
+time=2026-01-03T02:04:47.896+01:00 level=INFO msg="glcmd starting"
+time=2026-01-03T02:04:47.920+01:00 level=INFO msg="database connected successfully" type=sqlite path=./data/glcmd.db
+time=2026-01-03T02:04:47.925+01:00 level=INFO msg="services initialized successfully"
+time=2026-01-03T02:04:47.930+01:00 level=INFO msg="daemon configuration loaded" fetchInterval=5m displayInterval=1m emojisEnabled=true
+time=2026-01-03T02:04:47.935+01:00 level=INFO msg="unified API server started" port=8080
+time=2026-01-03T02:04:47.940+01:00 level=INFO msg="daemon started, polling LibreView API every 5m"
+time=2026-01-03T02:04:47.945+01:00 level=INFO msg="fetching new measurement"
+time=2026-01-03T02:04:48.120+01:00 level=INFO msg="measurement fetched successfully"
+time=2026-01-03T02:04:48.120+01:00 level=INFO msg="last measurement" value="5.7 mmol/L (102 mg/dL)" trend=➡️ status="🟢 Normal" timestamp="2026-01-03 02:04:28"
+time=2026-01-03T02:05:47.837+01:00 level=INFO msg="last measurement" value="5.7 mmol/L (102 mg/dL)" trend=➡️ status="🟢 Normal" timestamp="2026-01-03 02:04:28"
+time=2026-01-03T02:06:47.891+01:00 level=INFO msg="fetching new measurement"
+time=2026-01-03T02:06:48.039+01:00 level=INFO msg="measurement fetched successfully"
+time=2026-01-03T02:06:48.039+01:00 level=INFO msg="last measurement" value="5.6 mmol/L (100 mg/dL)" trend=➡️ status="🟢 Normal" timestamp="2026-01-03 02:06:27"
+```
+
+The daemon:
+- Polls LibreView API every 5 minutes (configurable)
+- Displays latest glucose reading every minute (configurable)
+- Stores measurements in SQLite database
+- Detects sensor changes automatically
+- Imports historical data on first run
+- Persists data across restarts
+- Exposes HTTP API on port 8080
+
+## HTTP API
+
+The daemon exposes a REST API on port 8080 for programmatic access to glucose data.
+
+### Available Endpoints
+
 - `GET /health` - Daemon health status
 - `GET /metrics` - Runtime metrics (uptime, memory, goroutines)
 - `GET /measurements/latest` - Most recent glucose reading
@@ -151,23 +143,91 @@ curl "http://localhost:8080/measurements/stats?start=$START&end=$END" | jq
 - `GET /measurements/stats` - Statistics with time-in-range analysis
 - `GET /sensors` - Sensor information
 
-For complete API documentation with all parameters, response formats, and examples, see **[API Reference](docs/API.md)**.
+### Example API Calls
 
-## 📚 Documentation
+```bash
+# Health check
+$ curl http://localhost:8080/health | jq
+{
+  "data": {
+    "status": "healthy",
+    "timestamp": "2026-01-03T02:33:12Z",
+    "uptime": "1h16m25s",
+    "consecutiveErrors": 0,
+    "lastFetchTime": "2026-01-03T02:31:47Z"
+  }
+}
 
-For detailed information about the project:
+# Runtime metrics
+$ curl http://localhost:8080/metrics | jq
+{
+  "data": {
+    "uptime": "1h16m36s",
+    "goroutines": 9,
+    "memory": {
+      "allocMB": 2,
+      "totalAllocMB": 25,
+      "sysMB": 19,
+      "numGC": 42
+    },
+    "runtime": {
+      "version": "go1.25.5",
+      "os": "linux",
+      "arch": "amd64"
+    }
+  }
+}
 
-- **[API Reference](docs/API.md)**: Complete HTTP API documentation with all endpoints, parameters, response formats, and usage examples
-- **[Architecture Documentation](docs/ARCHITECTURE.md)**: Complete architectural overview, design patterns, database schema, testing strategy, and migration guide
-- **[Environment Variables](docs/ENV_VARS.md)**: Comprehensive configuration reference with examples for development, production, and Docker deployments
-- **[Documentation Index](docs/README.md)**: Quick start guide and documentation overview
+# Latest glucose measurement
+$ curl http://localhost:8080/measurements/latest | jq
+{
+  "data": {
+    "timestamp": "2026-01-03T02:31:27Z",
+    "value": 5.6,
+    "valueInMgPerDl": 100,
+    "trendArrow": 3,
+    "measurementColor": 1,
+    "isHigh": false,
+    "isLow": false
+  }
+}
 
-## 📄 License
+# Sensor information
+$ curl http://localhost:8080/sensors | jq
+{
+  "data": {
+    "sensors": [
+      {
+        "serialNumber": "ABC123XYZ",
+        "activation": "2025-12-28T18:02:35Z",
+        "sensorType": 4,
+        "warrantyDays": 60,
+        "isActive": false
+      }
+    ]
+  }
+}
+
+# Statistics for last 7 days
+START=$(date -u -d '7 days ago' +%Y-%m-%dT%H:%M:%SZ)
+END=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+curl "http://localhost:8080/measurements/stats?start=$START&end=$END" | jq
+```
+
+For complete API documentation with all parameters and response formats, see [API Reference](docs/API.md).
+
+## Documentation
+
+- [API Reference](docs/API.md) - Complete HTTP API documentation
+- [Architecture Documentation](docs/ARCHITECTURE.md) - Architectural overview and design patterns
+- [Environment Variables](docs/ENV_VARS.md) - Comprehensive configuration reference
+- [Documentation Index](docs/README.md) - Quick start guide and documentation overview
+- [CHANGELOG](CHANGELOG.md) - Version history and release notes
+
+## License
 
 This project is licensed under the [MIT](LICENSE) license.
 
-## ⚠️ Disclaimer
+## Disclaimer
 
-This tool is provided for informational and personal use only.
-It is not a certified medical device and should not be used to make health-related decisions.
-Use it at your own risk.
+This tool is provided for informational and personal use only. It is not a certified medical device and should not be used to make health-related decisions. Use at your own risk.
