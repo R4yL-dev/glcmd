@@ -68,10 +68,48 @@ type SensorsResponse struct {
 	Data SensorsData `json:"data"`
 }
 
-// SensorsData contains active sensor and all sensors
+// SensorsData contains current sensor and history
 type SensorsData struct {
-	Active  *domain.SensorConfig   `json:"active"`
-	Sensors []*domain.SensorConfig `json:"sensors"`
+	Current *SensorResponse   `json:"current"`
+	History []*SensorResponse `json:"history"`
+}
+
+// SensorResponse represents a sensor with calculated fields
+type SensorResponse struct {
+	SerialNumber  string   `json:"serialNumber"`
+	Activation    string   `json:"activation"`
+	ExpiresAt     string   `json:"expiresAt"`
+	EndedAt       *string  `json:"endedAt"`
+	SensorType    int      `json:"sensorType"`
+	DurationDays  int      `json:"durationDays"`
+	DaysRemaining *float64 `json:"daysRemaining,omitempty"`
+	DaysElapsed   float64  `json:"daysElapsed"`
+	ActualDays    *float64 `json:"actualDays,omitempty"`
+	IsActive      bool     `json:"isActive"`
+}
+
+// NewSensorResponse creates a SensorResponse from a domain.SensorConfig
+func NewSensorResponse(s *domain.SensorConfig) *SensorResponse {
+	resp := &SensorResponse{
+		SerialNumber: s.SerialNumber,
+		Activation:   s.Activation.Format("2006-01-02T15:04:05Z"),
+		ExpiresAt:    s.ExpiresAt.Format("2006-01-02T15:04:05Z"),
+		SensorType:   s.SensorType,
+		DurationDays: s.DurationDays,
+		DaysElapsed:  s.ElapsedDays(),
+		IsActive:     s.IsActive(),
+	}
+
+	if s.EndedAt != nil {
+		endedAtStr := s.EndedAt.Format("2006-01-02T15:04:05Z")
+		resp.EndedAt = &endedAtStr
+		resp.ActualDays = s.ActualDays()
+	} else {
+		remaining := s.RemainingDays()
+		resp.DaysRemaining = &remaining
+	}
+
+	return resp
 }
 
 // writeJSONResponse writes a JSON response

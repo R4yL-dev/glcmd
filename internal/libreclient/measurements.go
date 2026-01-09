@@ -5,6 +5,16 @@ import (
 	"fmt"
 )
 
+// SensorData represents the sensor information from LibreView API.
+type SensorData struct {
+	SN string `json:"sn"` // Serial number
+	A  int    `json:"a"`  // Activation timestamp (Unix)
+	PT int    `json:"pt"` // Product type (4 = Libre 3 Plus)
+	W  int    `json:"w"`  // Warranty days (not used)
+	S  bool   `json:"s"`  // Status (always false, not used)
+	LJ bool   `json:"lj"` // Low journey (always false, not used)
+}
+
 // ConnectionsResponse represents the response from /llu/connections endpoint.
 type ConnectionsResponse struct {
 	Data []struct {
@@ -20,6 +30,7 @@ type ConnectionsResponse struct {
 			IsHigh           bool    `json:"isHigh"`
 			IsLow            bool    `json:"isLow"`
 		} `json:"glucoseMeasurement"`
+		Sensor SensorData `json:"sensor"`
 	} `json:"data"`
 }
 
@@ -37,15 +48,7 @@ type GraphResponse struct {
 				IsHigh           bool    `json:"isHigh"`
 				IsLow            bool    `json:"isLow"`
 			} `json:"glucoseMeasurement"`
-			Sensor struct {
-				DeviceID string `json:"deviceId"`
-				SN       string `json:"sn"`
-				A        int    `json:"a"`
-				W        int    `json:"w"`
-				PT       int    `json:"pt"`
-				S        bool   `json:"s"`
-				LJ       bool   `json:"lj"`
-			} `json:"sensor"`
+			Sensor SensorData `json:"sensor"`
 		} `json:"connection"`
 		GraphData []struct {
 			FactoryTimestamp string  `json:"FactoryTimestamp"`

@@ -14,16 +14,16 @@ import (
 // Mock implementations
 
 type MockSensorRepository struct {
-	FindActiveFunc           func(ctx context.Context) (*domain.SensorConfig, error)
-	SaveFunc                 func(ctx context.Context, s *domain.SensorConfig) error
-	UpdateActiveStatusFunc   func(ctx context.Context, serial string, active bool) error
-	FindAllFunc              func(ctx context.Context) ([]*domain.SensorConfig, error)
-	FindBySerialNumberFunc   func(ctx context.Context, serial string) (*domain.SensorConfig, error)
+	FindCurrentFunc        func(ctx context.Context) (*domain.SensorConfig, error)
+	SaveFunc               func(ctx context.Context, s *domain.SensorConfig) error
+	SetEndedAtFunc         func(ctx context.Context, serial string, endedAt time.Time) error
+	FindAllFunc            func(ctx context.Context) ([]*domain.SensorConfig, error)
+	FindBySerialNumberFunc func(ctx context.Context, serial string) (*domain.SensorConfig, error)
 }
 
-func (m *MockSensorRepository) FindActive(ctx context.Context) (*domain.SensorConfig, error) {
-	if m.FindActiveFunc != nil {
-		return m.FindActiveFunc(ctx)
+func (m *MockSensorRepository) FindCurrent(ctx context.Context) (*domain.SensorConfig, error) {
+	if m.FindCurrentFunc != nil {
+		return m.FindCurrentFunc(ctx)
 	}
 	return nil, persistence.ErrNotFound
 }
@@ -35,9 +35,9 @@ func (m *MockSensorRepository) Save(ctx context.Context, s *domain.SensorConfig)
 	return nil
 }
 
-func (m *MockSensorRepository) UpdateActiveStatus(ctx context.Context, serial string, active bool) error {
-	if m.UpdateActiveStatusFunc != nil {
-		return m.UpdateActiveStatusFunc(ctx, serial, active)
+func (m *MockSensorRepository) SetEndedAt(ctx context.Context, serial string, endedAt time.Time) error {
+	if m.SetEndedAtFunc != nil {
+		return m.SetEndedAtFunc(ctx, serial, endedAt)
 	}
 	return nil
 }
@@ -72,8 +72,8 @@ func (m *MockUnitOfWork) ExecuteInTransaction(ctx context.Context, fn func(txCtx
 
 func TestSensorService_HandleSensorChange_FirstSensor(t *testing.T) {
 	mockRepo := &MockSensorRepository{
-		FindActiveFunc: func(ctx context.Context) (*domain.SensorConfig, error) {
-			// No active sensor exists
+		FindCurrentFunc: func(ctx context.Context) (*domain.SensorConfig, error) {
+			// No current sensor exists
 			return nil, persistence.ErrNotFound
 		},
 		SaveFunc: func(ctx context.Context, s *domain.SensorConfig) error {
@@ -88,10 +88,14 @@ func TestSensorService_HandleSensorChange_FirstSensor(t *testing.T) {
 
 	service := NewSensorService(mockRepo, mockUoW, slog.Default())
 
+	now := time.Now().UTC()
 	newSensor := &domain.SensorConfig{
 		SerialNumber: "FIRST_SENSOR",
-		IsActive:     true,
-		DetectedAt:   time.Now().UTC(),
+		Activation:   now,
+		ExpiresAt:    now.AddDate(0, 0, 15),
+		SensorType:   4,
+		DurationDays: 15,
+		DetectedAt:   now,
 	}
 
 	err := service.HandleSensorChange(context.Background(), newSensor)
@@ -101,26 +105,27 @@ func TestSensorService_HandleSensorChange_FirstSensor(t *testing.T) {
 }
 
 func TestSensorService_HandleSensorChange_SensorChanged(t *testing.T) {
+	now := time.Now().UTC()
 	oldSensor := &domain.SensorConfig{
 		SerialNumber: "OLD_SENSOR",
-		IsActive:     true,
+		Activation:   now.AddDate(0, 0, -10),
+		ExpiresAt:    now.AddDate(0, 0, 5),
+		SensorType:   4,
+		DurationDays: 15,
 	}
 
-	deactivateCalled := false
+	setEndedAtCalled := false
 	saveCalled := false
 
 	mockRepo := &MockSensorRepository{
-		FindActiveFunc: func(ctx context.Context) (*domain.SensorConfig, error) {
+		FindCurrentFunc: func(ctx context.Context) (*domain.SensorConfig, error) {
 			return oldSensor, nil
 		},
-		UpdateActiveStatusFunc: func(ctx context.Context, serial string, active bool) error {
+		SetEndedAtFunc: func(ctx context.Context, serial string, endedAt time.Time) error {
 			if serial != "OLD_SENSOR" {
 				t.Errorf("expected serial = OLD_SENSOR, got %s", serial)
 			}
-			if active != false {
-				t.Error("expected active = false")
-			}
-			deactivateCalled = true
+			setEndedAtCalled = true
 			return nil
 		},
 		SaveFunc: func(ctx context.Context, s *domain.SensorConfig) error {
@@ -138,8 +143,11 @@ func TestSensorService_HandleSensorChange_SensorChanged(t *testing.T) {
 
 	newSensor := &domain.SensorConfig{
 		SerialNumber: "NEW_SENSOR",
-		IsActive:     true,
-		DetectedAt:   time.Now().UTC(),
+		Activation:   now,
+		ExpiresAt:    now.AddDate(0, 0, 15),
+		SensorType:   4,
+		DurationDays: 15,
+		DetectedAt:   now,
 	}
 
 	err := service.HandleSensorChange(context.Background(), newSensor)
@@ -147,8 +155,8 @@ func TestSensorService_HandleSensorChange_SensorChanged(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if !deactivateCalled {
-		t.Error("expected old sensor to be deactivated")
+	if !setEndedAtCalled {
+		t.Error("expected old sensor to have EndedAt set")
 	}
 
 	if !saveCalled {
@@ -157,19 +165,23 @@ func TestSensorService_HandleSensorChange_SensorChanged(t *testing.T) {
 }
 
 func TestSensorService_HandleSensorChange_SameSensor(t *testing.T) {
+	now := time.Now().UTC()
 	existingSensor := &domain.SensorConfig{
 		SerialNumber: "SAME_SENSOR",
-		IsActive:     true,
+		Activation:   now.AddDate(0, 0, -5),
+		ExpiresAt:    now.AddDate(0, 0, 10),
+		SensorType:   4,
+		DurationDays: 15,
 	}
 
-	deactivateCalled := false
+	setEndedAtCalled := false
 
 	mockRepo := &MockSensorRepository{
-		FindActiveFunc: func(ctx context.Context) (*domain.SensorConfig, error) {
+		FindCurrentFunc: func(ctx context.Context) (*domain.SensorConfig, error) {
 			return existingSensor, nil
 		},
-		UpdateActiveStatusFunc: func(ctx context.Context, serial string, active bool) error {
-			deactivateCalled = true
+		SetEndedAtFunc: func(ctx context.Context, serial string, endedAt time.Time) error {
+			setEndedAtCalled = true
 			return nil
 		},
 		SaveFunc: func(ctx context.Context, s *domain.SensorConfig) error {
@@ -184,8 +196,11 @@ func TestSensorService_HandleSensorChange_SameSensor(t *testing.T) {
 
 	sameSensor := &domain.SensorConfig{
 		SerialNumber: "SAME_SENSOR", // Same serial number
-		IsActive:     true,
-		DetectedAt:   time.Now().UTC(),
+		Activation:   now.AddDate(0, 0, -5),
+		ExpiresAt:    now.AddDate(0, 0, 10),
+		SensorType:   4,
+		DurationDays: 15,
+		DetectedAt:   now,
 	}
 
 	err := service.HandleSensorChange(context.Background(), sameSensor)
@@ -193,24 +208,28 @@ func TestSensorService_HandleSensorChange_SameSensor(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// Should NOT deactivate if same sensor
-	if deactivateCalled {
-		t.Error("expected old sensor to NOT be deactivated (same sensor)")
+	// Should NOT set EndedAt if same sensor
+	if setEndedAtCalled {
+		t.Error("expected old sensor to NOT have EndedAt set (same sensor)")
 	}
 }
 
 func TestSensorService_HandleSensorChange_TransactionRollback(t *testing.T) {
+	now := time.Now().UTC()
 	oldSensor := &domain.SensorConfig{
 		SerialNumber: "OLD_SENSOR",
-		IsActive:     true,
+		Activation:   now.AddDate(0, 0, -10),
+		ExpiresAt:    now.AddDate(0, 0, 5),
+		SensorType:   4,
+		DurationDays: 15,
 	}
 
 	mockRepo := &MockSensorRepository{
-		FindActiveFunc: func(ctx context.Context) (*domain.SensorConfig, error) {
+		FindCurrentFunc: func(ctx context.Context) (*domain.SensorConfig, error) {
 			return oldSensor, nil
 		},
-		UpdateActiveStatusFunc: func(ctx context.Context, serial string, active bool) error {
-			// Deactivation succeeds
+		SetEndedAtFunc: func(ctx context.Context, serial string, endedAt time.Time) error {
+			// SetEndedAt succeeds
 			return nil
 		},
 		SaveFunc: func(ctx context.Context, s *domain.SensorConfig) error {
@@ -236,7 +255,10 @@ func TestSensorService_HandleSensorChange_TransactionRollback(t *testing.T) {
 
 	newSensor := &domain.SensorConfig{
 		SerialNumber: "NEW_SENSOR",
-		IsActive:     true,
+		Activation:   now,
+		ExpiresAt:    now.AddDate(0, 0, 15),
+		SensorType:   4,
+		DurationDays: 15,
 	}
 
 	err := service.HandleSensorChange(context.Background(), newSensor)

@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"time"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -25,12 +26,13 @@ func NewSensorRepository(db *gorm.DB) *SensorRepositoryGORM {
 func (r *SensorRepositoryGORM) Save(ctx context.Context, s *domain.SensorConfig) error {
 	db := txOrDefault(ctx, r.db)
 
-	// Upsert: Update all fields on conflict with serial_number
+	// Upsert: Update fields on conflict with serial_number
+	// Note: ended_at is NOT updated on conflict - it's only set via SetEndedAt
 	result := db.Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "serial_number"}},
+		Columns: []clause.Column{{Name: "serial_number"}},
 		DoUpdates: clause.AssignmentColumns([]string{
-			"activation", "device_id", "sensor_type", "warranty_days",
-			"is_active", "low_journey", "detected_at", "updated_at",
+			"activation", "expires_at", "sensor_type", "duration_days",
+			"detected_at", "updated_at",
 		}),
 	}).Create(s)
 
@@ -54,12 +56,12 @@ func (r *SensorRepositoryGORM) FindBySerialNumber(ctx context.Context, serial st
 	return &sensor, nil
 }
 
-// FindActive returns the currently active sensor.
-func (r *SensorRepositoryGORM) FindActive(ctx context.Context) (*domain.SensorConfig, error) {
+// FindCurrent returns the current sensor (EndedAt is null).
+func (r *SensorRepositoryGORM) FindCurrent(ctx context.Context) (*domain.SensorConfig, error) {
 	db := txOrDefault(ctx, r.db)
 
 	var sensor domain.SensorConfig
-	result := db.Where("is_active = ?", true).First(&sensor)
+	result := db.Where("ended_at IS NULL").Order("detected_at DESC").First(&sensor)
 
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
@@ -85,13 +87,13 @@ func (r *SensorRepositoryGORM) FindAll(ctx context.Context) ([]*domain.SensorCon
 	return sensors, nil
 }
 
-// UpdateActiveStatus updates the active status of a sensor.
-func (r *SensorRepositoryGORM) UpdateActiveStatus(ctx context.Context, serial string, active bool) error {
+// SetEndedAt marks a sensor as ended (replaced by a new sensor).
+func (r *SensorRepositoryGORM) SetEndedAt(ctx context.Context, serial string, endedAt time.Time) error {
 	db := txOrDefault(ctx, r.db)
 
 	result := db.Model(&domain.SensorConfig{}).
 		Where("serial_number = ?", serial).
-		Update("is_active", active)
+		Update("ended_at", endedAt)
 
 	if result.Error != nil {
 		return result.Error

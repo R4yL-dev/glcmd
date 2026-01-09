@@ -324,23 +324,28 @@ func TestE2E_GetStatistics_TimeRangeTooLarge(t *testing.T) {
 func TestE2E_GetSensors(t *testing.T) {
 	server, db := setupE2ETest(t)
 
+	now := time.Now().UTC()
+	endedAt := now.Add(-2 * 24 * time.Hour)
+
 	// Insert test sensors
 	sensors := []*domain.SensorConfig{
 		{
 			SerialNumber: "SENSOR001",
-			Activation:   time.Now().Add(-7 * 24 * time.Hour),
-			DeviceID:     "device001",
+			Activation:   now.Add(-22 * 24 * time.Hour),
+			ExpiresAt:    now.Add(-7 * 24 * time.Hour),
+			EndedAt:      &endedAt, // Ended sensor (in history)
 			SensorType:   4,
-			IsActive:     false, // Expired/inactive
-			DetectedAt:   time.Now().Add(-7 * 24 * time.Hour),
+			DurationDays: 15,
+			DetectedAt:   now.Add(-22 * 24 * time.Hour),
 		},
 		{
 			SerialNumber: "SENSOR002",
-			Activation:   time.Now().Add(-2 * 24 * time.Hour),
-			DeviceID:     "device002",
+			Activation:   now.Add(-2 * 24 * time.Hour),
+			ExpiresAt:    now.Add(13 * 24 * time.Hour),
+			EndedAt:      nil, // Current sensor
 			SensorType:   4,
-			IsActive:     true, // Active
-			DetectedAt:   time.Now().Add(-2 * 24 * time.Hour),
+			DurationDays: 15,
+			DetectedAt:   now.Add(-2 * 24 * time.Hour),
 		},
 	}
 	for _, s := range sensors {
@@ -364,15 +369,18 @@ func TestE2E_GetSensors(t *testing.T) {
 		t.Fatalf("failed to parse response: %v", err)
 	}
 
-	if len(response.Data.Sensors) != 2 {
-		t.Errorf("expected 2 sensors, got %d", len(response.Data.Sensors))
+	// Verify current sensor is identified
+	if response.Data.Current == nil {
+		t.Error("expected current sensor, got nil")
+	} else if response.Data.Current.SerialNumber != "SENSOR002" {
+		t.Errorf("expected current sensor SENSOR002, got %s", response.Data.Current.SerialNumber)
 	}
 
-	// Verify active sensor is identified
-	if response.Data.Active == nil {
-		t.Error("expected active sensor, got nil")
-	} else if response.Data.Active.SerialNumber != "SENSOR002" {
-		t.Errorf("expected active sensor SENSOR002, got %s", response.Data.Active.SerialNumber)
+	// Verify history contains ended sensor
+	if len(response.Data.History) != 1 {
+		t.Errorf("expected 1 sensor in history, got %d", len(response.Data.History))
+	} else if response.Data.History[0].SerialNumber != "SENSOR001" {
+		t.Errorf("expected SENSOR001 in history, got %s", response.Data.History[0].SerialNumber)
 	}
 }
 

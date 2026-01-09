@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -38,9 +39,14 @@ func TestUnitOfWork_ExecuteInTransaction_Commit(t *testing.T) {
 	uow := NewUnitOfWork(db)
 	sensorRepo := NewSensorRepository(db)
 
+	now := time.Now().UTC()
 	sensor := &domain.SensorConfig{
 		SerialNumber: "TEST123",
-		IsActive:     true,
+		Activation:   now.AddDate(0, 0, -5),
+		ExpiresAt:    now.AddDate(0, 0, 10),
+		SensorType:   4,
+		DurationDays: 15,
+		DetectedAt:   now,
 	}
 
 	// Execute in transaction
@@ -68,9 +74,14 @@ func TestUnitOfWork_ExecuteInTransaction_Rollback(t *testing.T) {
 	uow := NewUnitOfWork(db)
 	sensorRepo := NewSensorRepository(db)
 
+	now := time.Now().UTC()
 	sensor := &domain.SensorConfig{
 		SerialNumber: "TEST456",
-		IsActive:     true,
+		Activation:   now.AddDate(0, 0, -5),
+		ExpiresAt:    now.AddDate(0, 0, 10),
+		SensorType:   4,
+		DurationDays: 15,
+		DetectedAt:   now,
 	}
 
 	// Execute in transaction with error
@@ -99,8 +110,23 @@ func TestUnitOfWork_ExecuteInTransaction_ContextPropagation(t *testing.T) {
 	uow := NewUnitOfWork(db)
 	sensorRepo := NewSensorRepository(db)
 
-	sensor1 := &domain.SensorConfig{SerialNumber: "SENSOR1", IsActive: true}
-	sensor2 := &domain.SensorConfig{SerialNumber: "SENSOR2", IsActive: false}
+	now := time.Now().UTC()
+	sensor1 := &domain.SensorConfig{
+		SerialNumber: "SENSOR1",
+		Activation:   now.AddDate(0, 0, -10),
+		ExpiresAt:    now.AddDate(0, 0, 5),
+		SensorType:   4,
+		DurationDays: 15,
+		DetectedAt:   now.Add(-1 * time.Hour),
+	}
+	sensor2 := &domain.SensorConfig{
+		SerialNumber: "SENSOR2",
+		Activation:   now.AddDate(0, 0, -5),
+		ExpiresAt:    now.AddDate(0, 0, 10),
+		SensorType:   4,
+		DurationDays: 15,
+		DetectedAt:   now,
+	}
 
 	// Execute multiple operations in same transaction
 	err := uow.ExecuteInTransaction(context.Background(), func(txCtx context.Context) error {
@@ -134,7 +160,15 @@ func TestUnitOfWork_ExecuteInTransaction_RollbackOnSecondError(t *testing.T) {
 	uow := NewUnitOfWork(db)
 	sensorRepo := NewSensorRepository(db)
 
-	sensor1 := &domain.SensorConfig{SerialNumber: "SENSOR_A", IsActive: true}
+	now := time.Now().UTC()
+	sensor1 := &domain.SensorConfig{
+		SerialNumber: "SENSOR_A",
+		Activation:   now.AddDate(0, 0, -5),
+		ExpiresAt:    now.AddDate(0, 0, 10),
+		SensorType:   4,
+		DurationDays: 15,
+		DetectedAt:   now,
+	}
 
 	testErr := errors.New("second operation failed")
 

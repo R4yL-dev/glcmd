@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/R4yL-dev/glcmd/internal/domain"
 	"github.com/R4yL-dev/glcmd/internal/persistence"
@@ -36,9 +37,9 @@ func (s *SensorServiceImpl) SaveSensor(ctx context.Context, sensor *domain.Senso
 	return s.repo.Save(ctx, sensor)
 }
 
-// GetActiveSensor returns the currently active sensor.
-func (s *SensorServiceImpl) GetActiveSensor(ctx context.Context) (*domain.SensorConfig, error) {
-	return s.repo.FindActive(ctx)
+// GetCurrentSensor returns the current sensor (not ended).
+func (s *SensorServiceImpl) GetCurrentSensor(ctx context.Context) (*domain.SensorConfig, error) {
+	return s.repo.FindCurrent(ctx)
 }
 
 // GetAllSensors returns all sensors.
@@ -46,50 +47,61 @@ func (s *SensorServiceImpl) GetAllSensors(ctx context.Context) ([]*domain.Sensor
 	return s.repo.FindAll(ctx)
 }
 
-// HandleSensorChange handles sensor change detection and deactivation of old sensor.
+// HandleSensorChange handles sensor change detection.
 //
 // This method implements the business logic for sensor changes:
-// 1. Check for existing active sensor
-// 2. If serial number changed, deactivate old sensor and log the change
-// 3. Save new sensor as active
+// 1. Check for existing current sensor
+// 2. If serial number changed, set EndedAt on old sensor
+// 3. Save new sensor
 //
 // All operations are executed within a transaction to ensure atomicity.
 func (s *SensorServiceImpl) HandleSensorChange(ctx context.Context, newSensor *domain.SensorConfig) error {
 	return s.uow.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
-		// 1. Check for existing active sensor
-		currentSensor, err := s.repo.FindActive(txCtx)
+		// 1. Check for existing current sensor
+		currentSensor, err := s.repo.FindCurrent(txCtx)
 		if err != nil && !errors.Is(err, persistence.ErrNotFound) {
-			return fmt.Errorf("failed to find active sensor: %w", err)
+			return fmt.Errorf("failed to find current sensor: %w", err)
 		}
 
-		// 2. If sensor changed, deactivate old one
+		// 2. If sensor changed, mark old one as ended
 		if currentSensor != nil && currentSensor.SerialNumber != newSensor.SerialNumber {
+			endedAt := time.Now().UTC()
+
 			s.logger.Info("sensor change detected",
 				"oldSerial", currentSensor.SerialNumber,
 				"newSerial", newSensor.SerialNumber,
 				"oldActivation", currentSensor.Activation,
 				"newActivation", newSensor.Activation,
+				"oldEndedAt", endedAt,
 			)
 
-			err = s.repo.UpdateActiveStatus(txCtx, currentSensor.SerialNumber, false)
+			err = s.repo.SetEndedAt(txCtx, currentSensor.SerialNumber, endedAt)
 			if err != nil {
-				return fmt.Errorf("failed to deactivate old sensor: %w", err)
+				return fmt.Errorf("failed to set ended_at on old sensor: %w", err)
 			}
 
-			s.logger.Info("old sensor deactivated",
+			// Calculate actual days the old sensor was used
+			actualDays := endedAt.Sub(currentSensor.Activation).Hours() / 24
+
+			s.logger.Info("old sensor ended",
 				"serialNumber", currentSensor.SerialNumber,
+				"actualDays", fmt.Sprintf("%.1f", actualDays),
+				"expectedDays", currentSensor.DurationDays,
 			)
 		}
 
-		// 3. Save new sensor (will be active)
+		// 3. Save new sensor
 		if err := s.repo.Save(txCtx, newSensor); err != nil {
-			return fmt.Errorf("failed to save new sensor: %w", err)
+			return fmt.Errorf("failed to save sensor: %w", err)
 		}
 
+		// Log only if it's a new sensor (not just an update)
 		if currentSensor == nil || currentSensor.SerialNumber != newSensor.SerialNumber {
-			s.logger.Info("new sensor activated",
+			s.logger.Info("new sensor detected",
 				"serialNumber", newSensor.SerialNumber,
 				"activation", newSensor.Activation,
+				"expiresAt", newSensor.ExpiresAt,
+				"durationDays", newSensor.DurationDays,
 			)
 		}
 

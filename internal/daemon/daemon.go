@@ -330,11 +330,12 @@ func (d *Daemon) initialFetch() error {
 	slog.Info("historical measurements stored", "count", storedCount)
 
 	// Store sensor configuration
-	if err := d.storeSensor(&graphResp.Data.Connection.Sensor); err != nil {
+	sensor := &graphResp.Data.Connection.Sensor
+	if err := d.storeSensor(sensor); err != nil {
 		slog.Error("failed to store sensor", "error", err)
 		return fmt.Errorf("failed to store sensor: %w", err)
 	}
-	slog.Debug("sensor configuration stored", "serialNumber", graphResp.Data.Connection.Sensor.SN)
+	slog.Debug("sensor configuration stored", "serialNumber", sensor.SN)
 
 	return nil
 }
@@ -408,7 +409,19 @@ func (d *Daemon) fetch() error {
 	gm := &connectionsResp.Data[0].GlucoseMeasurement
 	slog.Debug("measurement received", "value", gm.Value, "trendArrow", gm.TrendArrow)
 
-	return d.storeCurrentMeasurement(gm)
+	// Store the measurement
+	if err := d.storeCurrentMeasurement(gm); err != nil {
+		return err
+	}
+
+	// Also store/update the sensor
+	sensor := &connectionsResp.Data[0].Sensor
+	if err := d.storeSensor(sensor); err != nil {
+		// Log but don't fail the fetch for sensor errors
+		slog.Warn("failed to store sensor", "error", err)
+	}
+
+	return nil
 }
 
 // storeCurrentMeasurement stores a current measurement (from /connections).
@@ -496,35 +509,29 @@ func (d *Daemon) storeHistoricalMeasurement(point *struct {
 }
 
 // storeSensor stores sensor configuration and handles sensor changes.
-// The sensor change detection logic (deactivating old sensor, activating new sensor)
-// is now handled by SensorService.HandleSensorChange() within a transaction.
-func (d *Daemon) storeSensor(sensor *struct {
-	DeviceID string `json:"deviceId"`
-	SN       string `json:"sn"`
-	A        int    `json:"a"`
-	W        int    `json:"w"`
-	PT       int    `json:"pt"`
-	S        bool   `json:"s"`
-	LJ       bool   `json:"lj"`
-}) error {
+// The sensor change detection logic (setting EndedAt on old sensor)
+// is handled by SensorService.HandleSensorChange() within a transaction.
+func (d *Daemon) storeSensor(sensor *libreclient.SensorData) error {
 	// Convert Unix timestamp to time.Time (sensor.A is activation time)
 	activationTime := time.Unix(int64(sensor.A), 0).UTC()
+
+	// Calculate duration and expiration based on sensor type
+	durationDays := domain.SensorDurationDays(sensor.PT)
+	expiresAt := activationTime.AddDate(0, 0, durationDays)
 
 	sensorConfig := &domain.SensorConfig{
 		SerialNumber: sensor.SN,
 		Activation:   activationTime,
-		DeviceID:     sensor.DeviceID,
+		ExpiresAt:    expiresAt,
 		SensorType:   sensor.PT,
-		WarrantyDays: sensor.W,
-		IsActive:     sensor.S,
-		LowJourney:   sensor.LJ,
+		DurationDays: durationDays,
 		DetectedAt:   time.Now().UTC(),
 	}
 
 	ctx, cancel := context.WithTimeout(d.ctx, 5*time.Second)
 	defer cancel()
 
-	// HandleSensorChange manages sensor change detection and deactivation atomically
+	// HandleSensorChange manages sensor change detection atomically
 	return d.sensorService.HandleSensorChange(ctx, sensorConfig)
 }
 

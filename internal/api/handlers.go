@@ -144,18 +144,32 @@ func (s *Server) handleGetSensors(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get active sensor
-	activeSensor, err := s.sensorService.GetActiveSensor(ctx)
+	// Get current sensor
+	currentSensor, err := s.sensorService.GetCurrentSensor(ctx)
 	if err != nil && !errors.Is(err, persistence.ErrNotFound) {
 		handleError(w, err, s.logger)
 		return
 	}
 
-	// Build response
+	// Build response with calculated fields
+	var currentResp *SensorResponse
+	if currentSensor != nil {
+		currentResp = NewSensorResponse(currentSensor)
+	}
+
+	// Convert all sensors to response format (history = all except current)
+	history := make([]*SensorResponse, 0, len(sensors))
+	for _, sensor := range sensors {
+		// Include in history if it's ended (not current)
+		if sensor.EndedAt != nil {
+			history = append(history, NewSensorResponse(sensor))
+		}
+	}
+
 	response := SensorsResponse{
 		Data: SensorsData{
-			Active:  activeSensor,
-			Sensors: sensors,
+			Current: currentResp,
+			History: history,
 		},
 	}
 

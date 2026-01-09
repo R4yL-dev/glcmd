@@ -134,6 +134,7 @@ func TestGetConnections_Success(t *testing.T) {
 				IsHigh           bool    `json:"isHigh"`
 				IsLow            bool    `json:"isLow"`
 			} `json:"glucoseMeasurement"`
+			Sensor SensorData `json:"sensor"`
 		}{
 			PatientID: "patient-123",
 		})

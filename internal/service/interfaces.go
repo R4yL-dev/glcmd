@@ -34,17 +34,17 @@ type SensorService interface {
 	// SaveSensor saves a sensor configuration
 	SaveSensor(ctx context.Context, s *domain.SensorConfig) error
 
-	// GetActiveSensor returns the currently active sensor
-	GetActiveSensor(ctx context.Context) (*domain.SensorConfig, error)
+	// GetCurrentSensor returns the current sensor (not ended)
+	GetCurrentSensor(ctx context.Context) (*domain.SensorConfig, error)
 
 	// GetAllSensors returns all sensors
 	GetAllSensors(ctx context.Context) ([]*domain.SensorConfig, error)
 
-	// HandleSensorChange handles sensor change detection and deactivation of old sensor.
+	// HandleSensorChange handles sensor change detection.
 	// This method uses a transaction to ensure atomicity:
-	// 1. Check for existing active sensor
-	// 2. If serial number changed, deactivate old sensor
-	// 3. Save new sensor as active
+	// 1. Check for existing current sensor
+	// 2. If serial number changed, set EndedAt on old sensor
+	// 3. Save new sensor
 	HandleSensorChange(ctx context.Context, newSensor *domain.SensorConfig) error
 }
 

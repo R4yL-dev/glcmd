@@ -44,14 +44,14 @@ type SensorRepository interface {
 	// FindBySerialNumber returns a sensor by its serial number
 	FindBySerialNumber(ctx context.Context, serial string) (*domain.SensorConfig, error)
 
-	// FindActive returns the currently active sensor
-	FindActive(ctx context.Context) (*domain.SensorConfig, error)
+	// FindCurrent returns the current sensor (EndedAt is null)
+	FindCurrent(ctx context.Context) (*domain.SensorConfig, error)
 
 	// FindAll returns all sensors ordered by detected_at descending
 	FindAll(ctx context.Context) ([]*domain.SensorConfig, error)
 
-	// UpdateActiveStatus updates the active status of a sensor
-	UpdateActiveStatus(ctx context.Context, serial string, active bool) error
+	// SetEndedAt marks a sensor as ended (replaced by a new sensor)
+	SetEndedAt(ctx context.Context, serial string, endedAt time.Time) error
 }
 
 // UserRepository defines the interface for user preferences persistence.
