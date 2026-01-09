@@ -1,44 +1,44 @@
 # Sources
 SRC_DIR=cmd/
-GLCMD_SRC=$(SRC_DIR)glcmd/main.go
+GLCORE_SRC=$(SRC_DIR)glcore/main.go
 
 # Destionations
 DIR_DEST=bin/
-GLCMD_NAME=$(DIR_DEST)glcmd
+GLCORE_NAME=$(DIR_DEST)glcore
 
 # Install destination
 INSTALL_PATH=/usr/local/bin
-INSTALLED_NAME=$(INSTALL_PATH)/glcmd
+INSTALLED_NAME=$(INSTALL_PATH)/glcore
 
 # Compiler flags
 GO_FLAGS=-o
 
-.PHONY: all build-glcmd run-glcmd clean clean-glcmd fclean re install uninstall test test-coverage test-verbose test-race
+.PHONY: all build-glcore run-glcore clean clean-glcore fclean re install uninstall test test-coverage test-verbose test-race
 
-all: build-glcmd
+all: build-glcore
 
 $(DIR_DEST):
 	mkdir -p $(DIR_DEST)
 
-build-glcmd:
-	go build $(GO_FLAGS) $(GLCMD_NAME) $(GLCMD_SRC)
+build-glcore:
+	go build $(GO_FLAGS) $(GLCORE_NAME) $(GLCORE_SRC)
 
-run-glcmd: build-glcmd
-	./$(GLCMD_NAME)
+run-glcore: build-glcore
+	./$(GLCORE_NAME)
 
-clean: clean-glcmd
-clean-glcmd:
-	rm -f $(GLCMD_NAME)
+clean: clean-glcore
+clean-glcore:
+	rm -f $(GLCORE_NAME)
 fclean: clean
 	rm -fr $(DIR_DEST)
 
-install: build-glcmd
+install: build-glcore
 	sudo mkdir -p $(INSTALL_PATH)
-	sudo install -m 755 $(GLCMD_NAME) $(INSTALLED_NAME)
-	@echo "✅ glcmd installed in $(INSTALL_PATH)"
+	sudo install -m 755 $(GLCORE_NAME) $(INSTALLED_NAME)
+	@echo "glcore installed in $(INSTALL_PATH)"
 uninstall:
 	sudo rm -f $(INSTALLED_NAME)
-	@echo "❌ glcmd removed from $(INSTALL_PATH)"
+	@echo "glcore removed from $(INSTALL_PATH)"
 reinstall: uninstall install
 
 # Test targets
