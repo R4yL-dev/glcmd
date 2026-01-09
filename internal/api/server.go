@@ -90,7 +90,6 @@ func (s *Server) setupRouter() *chi.Mux {
 // Start starts the HTTP server in a goroutine
 func (s *Server) Start() error {
 	go func() {
-		s.logger.Info("starting API server", "port", s.port)
 		if err := s.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			s.logger.Error("API server error", "error", err)
 		}
