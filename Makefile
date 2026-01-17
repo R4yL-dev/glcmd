@@ -1,7 +1,6 @@
-# Sources
-SRC_DIR=cmd/
-GLCORE_SRC=$(SRC_DIR)glcore/main.go
-GLCLI_SRC=$(SRC_DIR)glcli/main.go
+# Sources (package paths)
+GLCORE_PKG=./cmd/glcore
+GLCLI_PKG=./cmd/glcli
 
 # Destionations
 DIR_DEST=bin/
@@ -24,10 +23,10 @@ $(DIR_DEST):
 	mkdir -p $(DIR_DEST)
 
 build-glcore:
-	go build $(GO_FLAGS) $(GLCORE_NAME) $(GLCORE_SRC)
+	go build $(GO_FLAGS) $(GLCORE_NAME) $(GLCORE_PKG)
 
 build-glcli:
-	go build $(GO_FLAGS) $(GLCLI_NAME) $(GLCLI_SRC)
+	go build $(GO_FLAGS) $(GLCLI_NAME) $(GLCLI_PKG)
 
 run-glcore: build-glcore
 	./$(GLCORE_NAME)
