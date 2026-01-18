@@ -25,8 +25,9 @@ type GlucoseService interface {
 	// GetMeasurementsWithFilters returns filtered and paginated measurements with total count
 	GetMeasurementsWithFilters(ctx context.Context, filters repository.MeasurementFilters, limit, offset int) ([]*domain.GlucoseMeasurement, int64, error)
 
-	// GetStatistics calculates aggregated statistics for a time range
-	GetStatistics(ctx context.Context, start, end time.Time, targets *domain.GlucoseTargets) (*MeasurementStats, error)
+	// GetStatistics calculates aggregated statistics for a time range.
+	// If start and end are nil, returns statistics for all data (all time).
+	GetStatistics(ctx context.Context, start, end *time.Time, targets *domain.GlucoseTargets) (*MeasurementStats, error)
 }
 
 // SensorService defines the interface for sensor management business logic.

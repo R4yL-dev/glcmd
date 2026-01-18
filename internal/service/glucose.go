@@ -13,20 +13,22 @@ import (
 
 // MeasurementStats contains aggregated statistics for measurements
 type MeasurementStats struct {
-	Count         int     `json:"count"`
-	Average       float64 `json:"average"`
-	AverageMgDl   float64 `json:"averageMgDl"`
-	Min           float64 `json:"min"`
-	MinMgDl       int     `json:"minMgDl"`
-	Max           float64 `json:"max"`
-	MaxMgDl       int     `json:"maxMgDl"`
-	StdDev        float64 `json:"stdDev"`
-	LowCount      int     `json:"lowCount"`
-	NormalCount   int     `json:"normalCount"`
-	HighCount     int     `json:"highCount"`
-	TimeInRange   float64 `json:"timeInRange"`
-	TimeBelowRange float64 `json:"timeBelowRange"`
-	TimeAboveRange float64 `json:"timeAboveRange"`
+	Count          int        `json:"count"`
+	Average        float64    `json:"average"`
+	AverageMgDl    float64    `json:"averageMgDl"`
+	Min            float64    `json:"min"`
+	MinMgDl        int        `json:"minMgDl"`
+	Max            float64    `json:"max"`
+	MaxMgDl        int        `json:"maxMgDl"`
+	StdDev         float64    `json:"stdDev"`
+	LowCount       int        `json:"lowCount"`
+	NormalCount    int        `json:"normalCount"`
+	HighCount      int        `json:"highCount"`
+	TimeInRange    float64    `json:"timeInRange"`
+	TimeBelowRange float64    `json:"timeBelowRange"`
+	TimeAboveRange float64    `json:"timeAboveRange"`
+	FirstTimestamp *time.Time `json:"-"` // Oldest measurement (not in JSON, used for period)
+	LastTimestamp  *time.Time `json:"-"` // Newest measurement (not in JSON, used for period)
 }
 
 // GlucoseServiceImpl implements GlucoseService.
@@ -110,97 +112,47 @@ func (s *GlucoseServiceImpl) GetMeasurementsWithFilters(ctx context.Context, fil
 }
 
 // GetStatistics calculates aggregated statistics for a time range.
-func (s *GlucoseServiceImpl) GetStatistics(ctx context.Context, start, end time.Time, targets *domain.GlucoseTargets) (*MeasurementStats, error) {
-	// Get measurements in the time range
-	measurements, err := s.repo.FindByTimeRange(ctx, start, end)
+// If start and end are nil, returns statistics for all data (all time).
+func (s *GlucoseServiceImpl) GetStatistics(ctx context.Context, start, end *time.Time, targets *domain.GlucoseTargets) (*MeasurementStats, error) {
+	filters := repository.StatisticsFilters{
+		StartTime: start,
+		EndTime:   end,
+	}
+
+	if targets != nil {
+		filters.TargetLowMgDl = &targets.TargetLow
+		filters.TargetHighMgDl = &targets.TargetHigh
+	}
+
+	result, err := s.repo.GetStatistics(ctx, filters)
 	if err != nil {
 		return nil, err
 	}
 
-	if len(measurements) == 0 {
-		// Return empty stats if no measurements
-		return &MeasurementStats{
-			Count: 0,
-		}, nil
-	}
-
-	// Calculate basic statistics
+	// Map StatisticsResult to MeasurementStats
+	// Compute stddev from variance (sqrt computed in Go for SQLite compatibility)
 	stats := &MeasurementStats{
-		Count: len(measurements),
+		Count:          int(result.Count),
+		Average:        result.Average,
+		AverageMgDl:    result.AverageMgDl,
+		Min:            result.Min,
+		MinMgDl:        result.MinMgDl,
+		Max:            result.Max,
+		MaxMgDl:        result.MaxMgDl,
+		StdDev:         math.Sqrt(result.Variance),
+		LowCount:       int(result.LowCount),
+		NormalCount:    int(result.NormalCount),
+		HighCount:      int(result.HighCount),
+		FirstTimestamp: result.FirstTimestamp,
+		LastTimestamp:  result.LastTimestamp,
 	}
 
-	var sum float64
-	var sumMgDl float64
-	stats.Min = measurements[0].Value
-	stats.MinMgDl = measurements[0].ValueInMgPerDl
-	stats.Max = measurements[0].Value
-	stats.MaxMgDl = measurements[0].ValueInMgPerDl
-
-	for _, m := range measurements {
-		sum += m.Value
-		sumMgDl += float64(m.ValueInMgPerDl)
-
-		if m.Value < stats.Min {
-			stats.Min = m.Value
-			stats.MinMgDl = m.ValueInMgPerDl
-		}
-		if m.Value > stats.Max {
-			stats.Max = m.Value
-			stats.MaxMgDl = m.ValueInMgPerDl
-		}
-
-		// Count by color
-		switch m.MeasurementColor {
-		case domain.MeasurementColorNormal:
-			stats.NormalCount++
-		case domain.MeasurementColorWarning:
-			// Warning can be either low or high
-			if m.IsLow {
-				stats.LowCount++
-			} else {
-				stats.HighCount++
-			}
-		case domain.MeasurementColorCritical:
-			// Critical can be either low or high
-			if m.IsLow {
-				stats.LowCount++
-			} else {
-				stats.HighCount++
-			}
-		}
-	}
-
-	stats.Average = sum / float64(len(measurements))
-	stats.AverageMgDl = sumMgDl / float64(len(measurements))
-
-	// Calculate standard deviation
-	var sumSquares float64
-	for _, m := range measurements {
-		diff := m.Value - stats.Average
-		sumSquares += diff * diff
-	}
-	stats.StdDev = math.Sqrt(sumSquares / float64(len(measurements)))
-
-	// Calculate Time in Range if targets are provided
-	if targets != nil {
-		var inRange, below, above int
-		targetLowMgDl := targets.TargetLow
-		targetHighMgDl := targets.TargetHigh
-
-		for _, m := range measurements {
-			if m.ValueInMgPerDl < targetLowMgDl {
-				below++
-			} else if m.ValueInMgPerDl > targetHighMgDl {
-				above++
-			} else {
-				inRange++
-			}
-		}
-
-		total := float64(len(measurements))
-		stats.TimeInRange = (float64(inRange) / total) * 100
-		stats.TimeBelowRange = (float64(below) / total) * 100
-		stats.TimeAboveRange = (float64(above) / total) * 100
+	// Calculate Time in Range percentages if targets were provided
+	if result.Count > 0 && targets != nil {
+		total := float64(result.Count)
+		stats.TimeInRange = (float64(result.InRangeCount) / total) * 100
+		stats.TimeBelowRange = (float64(result.BelowRangeCount) / total) * 100
+		stats.TimeAboveRange = (float64(result.AboveRangeCount) / total) * 100
 	}
 
 	return stats, nil

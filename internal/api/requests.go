@@ -10,10 +10,9 @@ import (
 )
 
 const (
-	defaultLimit = 100
-	maxLimit     = 1000
+	defaultLimit  = 100
+	maxLimit      = 1000
 	defaultOffset = 0
-	maxDaysRange = 90
 )
 
 // parsePaginationParams parses limit and offset from query parameters
@@ -108,39 +107,39 @@ func parseMeasurementFilters(r *http.Request) (repository.MeasurementFilters, er
 	return filters, nil
 }
 
-// parseStatisticsParams parses and validates statistics request parameters
-func parseStatisticsParams(r *http.Request) (start, end time.Time, err error) {
-	// Start time is required
+// parseStatisticsParams parses and validates statistics request parameters.
+// Returns nil for start/end if not provided (all time query).
+// Both parameters must be provided together or not at all.
+func parseStatisticsParams(r *http.Request) (start, end *time.Time, err error) {
 	startStr := r.URL.Query().Get("start")
-	if startStr == "" {
-		return time.Time{}, time.Time{}, NewValidationError("start parameter is required")
-	}
-	start, err = time.Parse(time.RFC3339, startStr)
-	if err != nil {
-		return time.Time{}, time.Time{}, NewValidationError("invalid start time format (use RFC3339)")
+	endStr := r.URL.Query().Get("end")
+
+	// Both empty = all time
+	if startStr == "" && endStr == "" {
+		return nil, nil, nil
 	}
 
-	// End time is required
-	endStr := r.URL.Query().Get("end")
-	if endStr == "" {
-		return time.Time{}, time.Time{}, NewValidationError("end parameter is required")
+	// Both must be provided together
+	if (startStr == "" && endStr != "") || (startStr != "" && endStr == "") {
+		return nil, nil, NewValidationError("both start and end must be provided, or neither")
 	}
-	end, err = time.Parse(time.RFC3339, endStr)
+
+	// Parse start time
+	startTime, err := time.Parse(time.RFC3339, startStr)
 	if err != nil {
-		return time.Time{}, time.Time{}, NewValidationError("invalid end time format (use RFC3339)")
+		return nil, nil, NewValidationError("invalid start time format (use RFC3339)")
+	}
+
+	// Parse end time
+	endTime, err := time.Parse(time.RFC3339, endStr)
+	if err != nil {
+		return nil, nil, NewValidationError("invalid end time format (use RFC3339)")
 	}
 
 	// Validate time range
-	if end.Before(start) {
-		return time.Time{}, time.Time{}, NewValidationError("end time must be after start time")
+	if endTime.Before(startTime) {
+		return nil, nil, NewValidationError("end time must be after start time")
 	}
 
-	// Validate max range (90 days)
-	duration := end.Sub(start)
-	maxDuration := time.Duration(maxDaysRange) * 24 * time.Hour
-	if duration > maxDuration {
-		return time.Time{}, time.Time{}, NewValidationError(fmt.Sprintf("time range must not exceed %d days", maxDaysRange))
-	}
-
-	return start, end, nil
+	return &startTime, &endTime, nil
 }

@@ -74,14 +74,15 @@ func (s *Server) handleGetMeasurements(w http.ResponseWriter, r *http.Request) {
 
 // handleGetStatistics handles GET /measurements/stats
 func (s *Server) handleGetStatistics(w http.ResponseWriter, r *http.Request) {
-	// Parse and validate parameters
+	// Parse and validate parameters (nil = all time)
 	start, end, err := parseStatisticsParams(r)
 	if err != nil {
 		handleError(w, err, s.logger)
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	// Use longer timeout for potentially large queries
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
 	// Get glucose targets for Time in Range calculation
@@ -98,12 +99,25 @@ func (s *Server) handleGetStatistics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Build response
-	data := StatisticsData{
-		Period: PeriodInfo{
+	// Build response with period info
+	var periodInfo PeriodInfo
+	if start != nil && end != nil {
+		periodInfo = PeriodInfo{
 			Start: start.Format(time.RFC3339),
 			End:   end.Format(time.RFC3339),
-		},
+		}
+	} else {
+		// All time - use actual data bounds from database
+		if stats.FirstTimestamp != nil {
+			periodInfo.Start = stats.FirstTimestamp.Format(time.RFC3339)
+		}
+		if stats.LastTimestamp != nil {
+			periodInfo.End = stats.LastTimestamp.Format(time.RFC3339)
+		}
+	}
+
+	data := StatisticsData{
+		Period:     periodInfo,
 		Statistics: *stats,
 		Distribution: DistributionData{
 			Low:    stats.LowCount,

@@ -302,11 +302,11 @@ func TestE2E_GetStatistics_InvalidTimeRange(t *testing.T) {
 	}
 }
 
-// TestE2E_GetStatistics_TimeRangeTooLarge tests max range validation
-func TestE2E_GetStatistics_TimeRangeTooLarge(t *testing.T) {
+// TestE2E_GetStatistics_LargeTimeRange tests that large time ranges work (no 90-day limit)
+func TestE2E_GetStatistics_LargeTimeRange(t *testing.T) {
 	server, _ := setupE2ETest(t)
 
-	// Range > 90 days
+	// Range > 90 days should now work (no limit)
 	start := time.Now().UTC().Add(-100 * 24 * time.Hour).Format(time.RFC3339)
 	end := time.Now().UTC().Format(time.RFC3339)
 
@@ -315,8 +315,50 @@ func TestE2E_GetStatistics_TimeRangeTooLarge(t *testing.T) {
 
 	server.ServeHTTP(w, req)
 
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected status 400, got %d", w.Code)
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+// TestE2E_GetStatistics_AllTime tests statistics without time bounds (all time)
+func TestE2E_GetStatistics_AllTime(t *testing.T) {
+	server, db := setupE2ETest(t)
+
+	now := time.Now().UTC()
+
+	// Insert test measurement
+	measurement := &domain.GlucoseMeasurement{
+		Timestamp:        now.Add(-1 * time.Hour),
+		Value:            7.0,
+		ValueInMgPerDl:   126,
+		Type:             domain.MeasurementTypeCurrent,
+		MeasurementColor: domain.MeasurementColorNormal,
+	}
+	db.Create(measurement)
+
+	// Query without start/end (all time)
+	req := httptest.NewRequest("GET", "/v1/measurements/stats", nil)
+	w := httptest.NewRecorder()
+
+	server.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var response api.StatisticsResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+
+	if response.Data.Statistics.Count != 1 {
+		t.Errorf("expected count 1, got %d", response.Data.Statistics.Count)
+	}
+
+	// Period should contain actual data bounds for all-time queries
+	if response.Data.Period.Start == "" || response.Data.Period.End == "" {
+		t.Errorf("expected period with actual data bounds, got start=%s end=%s",
+			response.Data.Period.Start, response.Data.Period.End)
 	}
 }
 

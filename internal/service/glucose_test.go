@@ -14,12 +14,13 @@ import (
 
 // MockMeasurementRepository for testing
 type MockMeasurementRepository struct {
-	SaveFunc            func(ctx context.Context, m *domain.GlucoseMeasurement) error
-	FindLatestFunc      func(ctx context.Context) (*domain.GlucoseMeasurement, error)
-	FindAllFunc         func(ctx context.Context) ([]*domain.GlucoseMeasurement, error)
-	FindByTimeRangeFunc func(ctx context.Context, start, end time.Time) ([]*domain.GlucoseMeasurement, error)
-	FindWithFiltersFunc func(ctx context.Context, filters repository.MeasurementFilters, limit, offset int) ([]*domain.GlucoseMeasurement, error)
+	SaveFunc             func(ctx context.Context, m *domain.GlucoseMeasurement) error
+	FindLatestFunc       func(ctx context.Context) (*domain.GlucoseMeasurement, error)
+	FindAllFunc          func(ctx context.Context) ([]*domain.GlucoseMeasurement, error)
+	FindByTimeRangeFunc  func(ctx context.Context, start, end time.Time) ([]*domain.GlucoseMeasurement, error)
+	FindWithFiltersFunc  func(ctx context.Context, filters repository.MeasurementFilters, limit, offset int) ([]*domain.GlucoseMeasurement, error)
 	CountWithFiltersFunc func(ctx context.Context, filters repository.MeasurementFilters) (int64, error)
+	GetStatisticsFunc    func(ctx context.Context, filters repository.StatisticsFilters) (*repository.StatisticsResult, error)
 }
 
 func (m *MockMeasurementRepository) Save(ctx context.Context, measurement *domain.GlucoseMeasurement) error {
@@ -62,6 +63,13 @@ func (m *MockMeasurementRepository) CountWithFilters(ctx context.Context, filter
 		return m.CountWithFiltersFunc(ctx, filters)
 	}
 	return 0, nil
+}
+
+func (m *MockMeasurementRepository) GetStatistics(ctx context.Context, filters repository.StatisticsFilters) (*repository.StatisticsResult, error) {
+	if m.GetStatisticsFunc != nil {
+		return m.GetStatisticsFunc(ctx, filters)
+	}
+	return &repository.StatisticsResult{}, nil
 }
 
 func TestGlucoseService_SaveMeasurement_Success(t *testing.T) {

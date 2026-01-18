@@ -15,6 +15,34 @@ type MeasurementFilters struct {
 	Type      *int // 0=historical, 1=current
 }
 
+// StatisticsFilters defines filter criteria for aggregated statistics
+type StatisticsFilters struct {
+	StartTime      *time.Time // nil = no lower bound
+	EndTime        *time.Time // nil = no upper bound
+	TargetLowMgDl  *int       // For Time in Range calculation
+	TargetHighMgDl *int       // For Time in Range calculation
+}
+
+// StatisticsResult contains aggregated statistics computed by SQL
+type StatisticsResult struct {
+	Count           int64
+	Average         float64
+	AverageMgDl     float64
+	Min             float64
+	MinMgDl         int
+	Max             float64
+	MaxMgDl         int
+	Variance        float64 // variance = E[X²] - E[X]², sqrt computed in Go for SQLite compatibility
+	LowCount        int64
+	NormalCount     int64
+	HighCount       int64
+	InRangeCount    int64
+	BelowRangeCount int64
+	AboveRangeCount int64
+	FirstTimestamp  *time.Time // Oldest measurement timestamp
+	LastTimestamp   *time.Time // Newest measurement timestamp
+}
+
 // MeasurementRepository defines the interface for glucose measurement persistence.
 type MeasurementRepository interface {
 	// Save creates or ignores a measurement (duplicate timestamps are silently ignored)
@@ -34,6 +62,9 @@ type MeasurementRepository interface {
 
 	// CountWithFilters returns total count of measurements matching filters
 	CountWithFilters(ctx context.Context, filters MeasurementFilters) (int64, error)
+
+	// GetStatistics returns aggregated statistics computed by SQL
+	GetStatistics(ctx context.Context, filters StatisticsFilters) (*StatisticsResult, error)
 }
 
 // SensorRepository defines the interface for sensor configuration persistence.
