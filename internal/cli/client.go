@@ -103,6 +103,88 @@ func (c *Client) GetCurrentSensor(ctx context.Context) (*SensorInfo, error) {
 	return result.Data.Current, nil
 }
 
+// GetMeasurements fetches glucose measurements with optional filtering
+func (c *Client) GetMeasurements(ctx context.Context, params MeasurementParams) (*MeasurementListResponse, error) {
+	// Build query string
+	path := "/v1/measurements?"
+	queryParts := []string{}
+
+	if params.Start != nil {
+		queryParts = append(queryParts, fmt.Sprintf("start=%s", params.Start.UTC().Format(time.RFC3339)))
+	}
+	if params.End != nil {
+		queryParts = append(queryParts, fmt.Sprintf("end=%s", params.End.UTC().Format(time.RFC3339)))
+	}
+	if params.Limit > 0 {
+		queryParts = append(queryParts, fmt.Sprintf("limit=%d", params.Limit))
+	}
+
+	for i, part := range queryParts {
+		if i > 0 {
+			path += "&"
+		}
+		path += part
+	}
+
+	resp, err := c.get(ctx, path)
+	if err != nil {
+		return nil, fmt.Errorf("cannot connect to glcore at %s: %w", c.baseURL, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("API returned status %d", resp.StatusCode)
+	}
+
+	var result MeasurementListResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	return &result, nil
+}
+
+// GetStatistics fetches glucose statistics for a time period
+func (c *Client) GetStatistics(ctx context.Context, start, end *time.Time) (*StatisticsResponse, error) {
+	// Build query string
+	path := "/v1/measurements/stats"
+	queryParts := []string{}
+
+	if start != nil {
+		queryParts = append(queryParts, fmt.Sprintf("start=%s", start.UTC().Format(time.RFC3339)))
+	}
+	if end != nil {
+		queryParts = append(queryParts, fmt.Sprintf("end=%s", end.UTC().Format(time.RFC3339)))
+	}
+
+	if len(queryParts) > 0 {
+		path += "?"
+		for i, part := range queryParts {
+			if i > 0 {
+				path += "&"
+			}
+			path += part
+		}
+	}
+
+	resp, err := c.get(ctx, path)
+	if err != nil {
+		return nil, fmt.Errorf("cannot connect to glcore at %s: %w", c.baseURL, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("API returned status %d", resp.StatusCode)
+	}
+
+	var result StatisticsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	return &result, nil
+}
+
 func (c *Client) get(ctx context.Context, path string) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+path, nil)
 	if err != nil {
