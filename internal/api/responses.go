@@ -76,28 +76,36 @@ type SensorsData struct {
 
 // SensorResponse represents a sensor with calculated fields
 type SensorResponse struct {
-	SerialNumber  string   `json:"serialNumber"`
-	Activation    string   `json:"activation"`
-	ExpiresAt     string   `json:"expiresAt"`
-	EndedAt       *string  `json:"endedAt"`
-	SensorType    int      `json:"sensorType"`
-	DurationDays  int      `json:"durationDays"`
-	DaysRemaining *float64 `json:"daysRemaining,omitempty"`
-	DaysElapsed   float64  `json:"daysElapsed"`
-	ActualDays    *float64 `json:"actualDays,omitempty"`
-	IsActive      bool     `json:"isActive"`
+	SerialNumber      string   `json:"serialNumber"`
+	Activation        string   `json:"activation"`
+	ExpiresAt         string   `json:"expiresAt"`
+	EndedAt           *string  `json:"endedAt,omitempty"`
+	LastMeasurementAt *string  `json:"lastMeasurementAt,omitempty"`
+	SensorType        int      `json:"sensorType"`
+	DurationDays      int      `json:"durationDays"`
+	DaysRemaining     *float64 `json:"daysRemaining,omitempty"`
+	DaysElapsed       float64  `json:"daysElapsed"`
+	ActualDays        *float64 `json:"actualDays,omitempty"`
+	DaysPastExpiry    *float64 `json:"daysPastExpiry,omitempty"`
+	IsActive          bool     `json:"isActive"`
+	Status            string   `json:"status"`
+	IsExpired         bool     `json:"isExpired"`
+	IsUnresponsive    bool     `json:"isUnresponsive"`
 }
 
 // NewSensorResponse creates a SensorResponse from a domain.SensorConfig
 func NewSensorResponse(s *domain.SensorConfig) *SensorResponse {
 	resp := &SensorResponse{
-		SerialNumber: s.SerialNumber,
-		Activation:   s.Activation.Format("2006-01-02T15:04:05Z"),
-		ExpiresAt:    s.ExpiresAt.Format("2006-01-02T15:04:05Z"),
-		SensorType:   s.SensorType,
-		DurationDays: s.DurationDays,
-		DaysElapsed:  s.ElapsedDays(),
-		IsActive:     s.IsActive(),
+		SerialNumber:   s.SerialNumber,
+		Activation:     s.Activation.Format("2006-01-02T15:04:05Z"),
+		ExpiresAt:      s.ExpiresAt.Format("2006-01-02T15:04:05Z"),
+		SensorType:     s.SensorType,
+		DurationDays:   s.DurationDays,
+		DaysElapsed:    s.ElapsedDays(),
+		IsActive:       s.IsActive(),
+		Status:         string(s.Status()),
+		IsExpired:      s.IsExpired(),
+		IsUnresponsive: s.IsUnresponsive(),
 	}
 
 	if s.EndedAt != nil {
@@ -107,6 +115,17 @@ func NewSensorResponse(s *domain.SensorConfig) *SensorResponse {
 	} else {
 		remaining := s.RemainingDays()
 		resp.DaysRemaining = &remaining
+	}
+
+	if s.LastMeasurementAt != nil {
+		lastMeasurementAtStr := s.LastMeasurementAt.Format("2006-01-02T15:04:05Z")
+		resp.LastMeasurementAt = &lastMeasurementAtStr
+	}
+
+	// Add days past expiry if sensor is expired
+	if s.IsExpired() {
+		daysPast := s.DaysPastExpiry()
+		resp.DaysPastExpiry = &daysPast
 	}
 
 	return resp

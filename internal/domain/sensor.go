@@ -2,6 +2,24 @@ package domain
 
 import "time"
 
+// SensorStatus represents the operational state of the sensor.
+type SensorStatus string
+
+const (
+	// SensorStatusRunning indicates the sensor is active and within its lifetime.
+	SensorStatusRunning SensorStatus = "running"
+	// SensorStatusExpired indicates the sensor has expired but hasn't been replaced yet.
+	SensorStatusExpired SensorStatus = "expired"
+	// SensorStatusEnded indicates the sensor has been replaced by a new one.
+	SensorStatusEnded SensorStatus = "ended"
+	// SensorStatusUnresponsive indicates the sensor is not sending data (no measurement for > 20 min).
+	SensorStatusUnresponsive SensorStatus = "unresponsive"
+)
+
+// UnresponsiveThreshold is the duration after which a sensor is considered unresponsive
+// if no measurements have been received.
+const UnresponsiveThreshold = 20 * time.Minute
+
 // SensorConfig represents glucose sensor information from the LibreView API.
 // Source: /llu/connections → data[0].sensor
 type SensorConfig struct {
@@ -10,13 +28,14 @@ type SensorConfig struct {
 	CreatedAt time.Time `gorm:"type:datetime;not null;default:CURRENT_TIMESTAMP" json:"createdAt"`
 	UpdatedAt time.Time `gorm:"type:datetime;not null;default:CURRENT_TIMESTAMP" json:"updatedAt"`
 
-	SerialNumber string    `gorm:"type:varchar(50);uniqueIndex:idx_serial;not null" json:"serialNumber"` // sn: Serial number of the sensor
-	Activation   time.Time `gorm:"type:datetime;not null;index:idx_activation" json:"activation"`        // a: Activation timestamp
-	ExpiresAt    time.Time `gorm:"type:datetime;not null" json:"expiresAt"`                              // Calculated: Activation + DurationDays
-	EndedAt      *time.Time `gorm:"type:datetime" json:"endedAt"`                                        // When sensor was replaced (nil = current sensor)
-	SensorType   int       `gorm:"type:integer;not null" json:"sensorType"`                              // pt: Sensor type (4 = Libre 3 Plus)
-	DurationDays int       `gorm:"type:integer;not null" json:"durationDays"`                            // Expected duration in days (15 for Libre 3 Plus)
-	DetectedAt   time.Time `gorm:"type:datetime;not null" json:"detectedAt"`                             // When this sensor was first detected by the daemon
+	SerialNumber      string     `gorm:"type:varchar(50);uniqueIndex:idx_serial;not null" json:"serialNumber"` // sn: Serial number of the sensor
+	Activation        time.Time  `gorm:"type:datetime;not null;index:idx_activation" json:"activation"`        // a: Activation timestamp
+	ExpiresAt         time.Time  `gorm:"type:datetime;not null" json:"expiresAt"`                              // Calculated: Activation + DurationDays
+	EndedAt           *time.Time `gorm:"type:datetime" json:"endedAt"`                                         // When sensor was replaced (nil = current sensor)
+	LastMeasurementAt *time.Time `gorm:"type:datetime" json:"lastMeasurementAt"`                               // Timestamp of the last received measurement
+	SensorType        int        `gorm:"type:integer;not null" json:"sensorType"`                              // pt: Sensor type (4 = Libre 3 Plus)
+	DurationDays      int        `gorm:"type:integer;not null" json:"durationDays"`                            // Expected duration in days (15 for Libre 3 Plus)
+	DetectedAt        time.Time  `gorm:"type:datetime;not null" json:"detectedAt"`                             // When this sensor was first detected by the daemon
 }
 
 // TableName specifies the table name for GORM.
@@ -73,4 +92,48 @@ func (s *SensorConfig) ActualDays() *float64 {
 	}
 	days := s.EndedAt.Sub(s.Activation).Hours() / 24
 	return &days
+}
+
+// Status returns the current operational status of the sensor.
+// Priority order: ended > expired > unresponsive > running
+//   - "ended": Sensor has been replaced by a new one
+//   - "expired": Sensor has expired but hasn't been replaced yet
+//   - "unresponsive": Sensor is not sending data (no measurement for > 20 min)
+//   - "running": Sensor is active and within its lifetime
+func (s *SensorConfig) Status() SensorStatus {
+	if s.EndedAt != nil {
+		return SensorStatusEnded
+	}
+	if time.Now().After(s.ExpiresAt) {
+		return SensorStatusExpired
+	}
+	if s.LastMeasurementAt != nil && time.Since(*s.LastMeasurementAt) > UnresponsiveThreshold {
+		return SensorStatusUnresponsive
+	}
+	return SensorStatusRunning
+}
+
+// IsExpired returns true if the sensor has expired but hasn't been replaced yet.
+func (s *SensorConfig) IsExpired() bool {
+	return s.EndedAt == nil && time.Now().After(s.ExpiresAt)
+}
+
+// IsRunning returns true if the sensor is active and within its lifetime.
+func (s *SensorConfig) IsRunning() bool {
+	return s.EndedAt == nil && !time.Now().After(s.ExpiresAt)
+}
+
+// IsUnresponsive returns true if the sensor has not sent data for more than UnresponsiveThreshold.
+func (s *SensorConfig) IsUnresponsive() bool {
+	return s.EndedAt == nil && !time.Now().After(s.ExpiresAt) &&
+		s.LastMeasurementAt != nil && time.Since(*s.LastMeasurementAt) > UnresponsiveThreshold
+}
+
+// DaysPastExpiry returns the number of days past the expected lifetime.
+// Returns 0 if the sensor hasn't expired yet.
+func (s *SensorConfig) DaysPastExpiry() float64 {
+	if !s.IsExpired() {
+		return 0
+	}
+	return time.Since(s.ExpiresAt).Hours() / 24
 }

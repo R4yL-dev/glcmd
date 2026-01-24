@@ -86,3 +86,9 @@ func (c *Client) GetGraph(ctx context.Context, token, accountID, patientID strin
 	}
 	return &result, nil
 }
+
+// GetConnectionsRaw returns the raw JSON response from /llu/connections.
+// This is useful for debugging and inspecting the API response structure.
+func (c *Client) GetConnectionsRaw(ctx context.Context, token, accountID string) ([]byte, error) {
+	return c.doRequestRaw(ctx, "GET", "/llu/connections", nil, token, accountID)
+}

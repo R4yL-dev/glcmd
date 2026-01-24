@@ -32,7 +32,7 @@ func (r *SensorRepositoryGORM) Save(ctx context.Context, s *domain.SensorConfig)
 		Columns: []clause.Column{{Name: "serial_number"}},
 		DoUpdates: clause.AssignmentColumns([]string{
 			"activation", "expires_at", "sensor_type", "duration_days",
-			"detected_at", "updated_at",
+			"detected_at", "updated_at", "last_measurement_at",
 		}),
 	}).Create(s)
 

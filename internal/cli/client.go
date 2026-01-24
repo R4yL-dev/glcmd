@@ -38,12 +38,17 @@ type GlucoseReading struct {
 
 // SensorInfo represents the sensor data returned by the API
 type SensorInfo struct {
-	SerialNumber  string   `json:"serialNumber"`
-	Activation    string   `json:"activation"`
-	ExpiresAt     string   `json:"expiresAt"`
-	DaysRemaining *float64 `json:"daysRemaining,omitempty"`
-	DaysElapsed   float64  `json:"daysElapsed"`
-	IsActive      bool     `json:"isActive"`
+	SerialNumber      string   `json:"serialNumber"`
+	Activation        string   `json:"activation"`
+	ExpiresAt         string   `json:"expiresAt"`
+	LastMeasurementAt *string  `json:"lastMeasurementAt,omitempty"`
+	DaysRemaining     *float64 `json:"daysRemaining,omitempty"`
+	DaysElapsed       float64  `json:"daysElapsed"`
+	DaysPastExpiry    *float64 `json:"daysPastExpiry,omitempty"`
+	IsActive          bool     `json:"isActive"`
+	Status            string   `json:"status"`
+	IsExpired         bool     `json:"isExpired"`
+	IsUnresponsive    bool     `json:"isUnresponsive"`
 }
 
 // GetLatestGlucose fetches the latest glucose reading

@@ -65,7 +65,13 @@ func (s *SensorServiceImpl) HandleSensorChange(ctx context.Context, newSensor *d
 
 		// 2. If sensor changed, mark old one as ended
 		if currentSensor != nil && currentSensor.SerialNumber != newSensor.SerialNumber {
-			endedAt := time.Now().UTC()
+			// Use LastMeasurementAt if available for more accurate EndedAt
+			var endedAt time.Time
+			if currentSensor.LastMeasurementAt != nil {
+				endedAt = *currentSensor.LastMeasurementAt
+			} else {
+				endedAt = time.Now().UTC()
+			}
 
 			s.logger.Info("sensor change detected",
 				"oldSerial", currentSensor.SerialNumber,
@@ -107,4 +113,23 @@ func (s *SensorServiceImpl) HandleSensorChange(ctx context.Context, newSensor *d
 
 		return nil
 	})
+}
+
+// UpdateLastMeasurementIfNewer updates the LastMeasurementAt field of the current sensor
+// only if the provided timestamp is newer than the existing one.
+// This handles historical measurements that may arrive out of order.
+func (s *SensorServiceImpl) UpdateLastMeasurementIfNewer(ctx context.Context, timestamp time.Time) error {
+	current, err := s.repo.FindCurrent(ctx)
+	if err != nil {
+		// No current sensor = nothing to update
+		return nil
+	}
+
+	// Update only if the timestamp is newer than the existing one
+	if current.LastMeasurementAt == nil || timestamp.After(*current.LastMeasurementAt) {
+		current.LastMeasurementAt = &timestamp
+		return s.repo.Save(ctx, current)
+	}
+
+	return nil // Nothing to do, the existing timestamp is more recent
 }

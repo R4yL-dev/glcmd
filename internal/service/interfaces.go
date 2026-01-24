@@ -47,6 +47,10 @@ type SensorService interface {
 	// 2. If serial number changed, set EndedAt on old sensor
 	// 3. Save new sensor
 	HandleSensorChange(ctx context.Context, newSensor *domain.SensorConfig) error
+
+	// UpdateLastMeasurementIfNewer updates the LastMeasurementAt field of the current sensor
+	// only if the provided timestamp is newer than the existing one.
+	UpdateLastMeasurementIfNewer(ctx context.Context, timestamp time.Time) error
 }
 
 // ConfigService defines the interface for configuration management (user, device, targets).

@@ -464,7 +464,16 @@ func (d *Daemon) storeCurrentMeasurement(gm *struct {
 	ctx, cancel := context.WithTimeout(d.ctx, 5*time.Second)
 	defer cancel()
 
-	return d.glucoseService.SaveMeasurement(ctx, measurement)
+	if err := d.glucoseService.SaveMeasurement(ctx, measurement); err != nil {
+		return err
+	}
+
+	// Update LastMeasurementAt on the current sensor
+	if err := d.sensorService.UpdateLastMeasurementIfNewer(ctx, measurement.Timestamp); err != nil {
+		slog.Warn("failed to update sensor LastMeasurementAt", "error", err)
+	}
+
+	return nil
 }
 
 // storeHistoricalMeasurement stores a historical measurement (from /graph).
@@ -505,7 +514,16 @@ func (d *Daemon) storeHistoricalMeasurement(point *struct {
 	ctx, cancel := context.WithTimeout(d.ctx, 5*time.Second)
 	defer cancel()
 
-	return d.glucoseService.SaveMeasurement(ctx, measurement)
+	if err := d.glucoseService.SaveMeasurement(ctx, measurement); err != nil {
+		return err
+	}
+
+	// Update LastMeasurementAt on the current sensor
+	if err := d.sensorService.UpdateLastMeasurementIfNewer(ctx, measurement.Timestamp); err != nil {
+		slog.Warn("failed to update sensor LastMeasurementAt", "error", err)
+	}
+
+	return nil
 }
 
 // storeSensor stores sensor configuration and handles sensor changes.

@@ -133,3 +133,64 @@ func (c *Client) setAuthHeader(req *http.Request, token, accountID string) {
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("account-id", accountID)
 }
+
+// doRequestRaw performs an HTTP request and returns the raw response body.
+// This is useful for debugging and inspecting the API response structure.
+func (c *Client) doRequestRaw(ctx context.Context, method, path string, body interface{}, token, accountID string) ([]byte, error) {
+	url := c.baseURL + path
+
+	var reqBody io.Reader
+	if body != nil {
+		jsonData, err := json.Marshal(body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal request body: %w", err)
+		}
+		reqBody = bytes.NewReader(jsonData)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, url, reqBody)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Set default headers
+	req.Header.Set("User-Agent", c.userAgent)
+	req.Header.Set("Content-Type", "application/json;charset=UTF-8")
+	req.Header.Set("version", c.version)
+	req.Header.Set("product", c.product)
+
+	// Set auth headers if provided
+	if token != "" && accountID != "" {
+		c.setAuthHeader(req, token, accountID)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, &NetworkError{Err: err}
+	}
+	defer resp.Body.Close()
+
+	// Read response body
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	// Handle HTTP status codes
+	switch {
+	case resp.StatusCode >= 200 && resp.StatusCode < 300:
+		return respBody, nil
+
+	case resp.StatusCode == http.StatusUnauthorized:
+		return nil, &AuthError{StatusCode: resp.StatusCode, Body: respBody}
+
+	case resp.StatusCode == http.StatusTooManyRequests:
+		return nil, &RateLimitError{StatusCode: resp.StatusCode, Body: respBody}
+
+	case resp.StatusCode >= 500:
+		return nil, &ServerError{StatusCode: resp.StatusCode, Body: respBody}
+
+	default:
+		return nil, &HTTPError{StatusCode: resp.StatusCode, Body: respBody}
+	}
+}
