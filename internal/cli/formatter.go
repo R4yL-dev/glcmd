@@ -67,26 +67,72 @@ func FormatGlucose(g *GlucoseReading) string {
 }
 
 // FormatSensor formats sensor info for human display
+// Priority: most important info first (remaining time for active, status for problematic)
 func FormatSensor(s *SensorInfo) string {
 	var sb strings.Builder
 
-	sb.WriteString(fmt.Sprintf("Sensor: %s\n", s.SerialNumber))
+	// Format expiration datetime (2006-01-02T15:04:05Z -> 2006-01-02 15:04)
+	expiresDateTime := formatDateTime(s.ExpiresAt)
 
-	if s.DaysRemaining != nil {
-		sb.WriteString(fmt.Sprintf("Active: %.1f days elapsed, %.1f days remaining\n",
-			s.DaysElapsed, *s.DaysRemaining))
-	} else {
-		sb.WriteString(fmt.Sprintf("Days Used: %.1f\n", s.DaysElapsed))
-	}
+	switch s.Status {
+	case "running":
+		// Active sensor: remaining time is most important
+		if s.DaysRemaining != nil {
+			sb.WriteString(fmt.Sprintf("%.1f days remaining | %.1f days active\n",
+				*s.DaysRemaining, s.DaysElapsed))
+		}
+		sb.WriteString(fmt.Sprintf("Sensor: %s\n", s.SerialNumber))
+		sb.WriteString(fmt.Sprintf("Expires: %s", expiresDateTime))
 
-	// Extract just the date part from ExpiresAt (format: 2006-01-02T15:04:05Z)
-	expiresDate := s.ExpiresAt
-	if len(expiresDate) >= 10 {
-		expiresDate = expiresDate[:10]
+	case "unresponsive":
+		// Unresponsive: alert first, then time info
+		if s.LastMeasurementAt != nil {
+			lastDateTime := formatDateTime(*s.LastMeasurementAt)
+			sb.WriteString(fmt.Sprintf("Unresponsive since %s\n", lastDateTime))
+		} else {
+			sb.WriteString("Unresponsive\n")
+		}
+		if s.DaysRemaining != nil {
+			sb.WriteString(fmt.Sprintf("%.1f days remaining | %.1f days active\n",
+				*s.DaysRemaining, s.DaysElapsed))
+		}
+		sb.WriteString(fmt.Sprintf("Sensor: %s\n", s.SerialNumber))
+		sb.WriteString(fmt.Sprintf("Expires: %s", expiresDateTime))
+
+	case "expired":
+		// Expired: status with datetime
+		sb.WriteString(fmt.Sprintf("Expired: %s\n", expiresDateTime))
+		sb.WriteString(fmt.Sprintf("Sensor: %s", s.SerialNumber))
+
+	case "ended":
+		// Ended: show when it ended
+		sb.WriteString(fmt.Sprintf("Ended | %.1f days used\n", s.DaysElapsed))
+		sb.WriteString(fmt.Sprintf("Sensor: %s", s.SerialNumber))
+
+	default:
+		// Fallback
+		sb.WriteString(fmt.Sprintf("Sensor: %s\n", s.SerialNumber))
+		if s.DaysRemaining != nil {
+			sb.WriteString(fmt.Sprintf("%.1f days remaining | %.1f days active",
+				*s.DaysRemaining, s.DaysElapsed))
+		} else {
+			sb.WriteString(fmt.Sprintf("%.1f days active", s.DaysElapsed))
+		}
 	}
-	sb.WriteString(fmt.Sprintf("Expires: %s", expiresDate))
 
 	return sb.String()
+}
+
+// formatDateTime converts ISO timestamp to readable format (2006-01-02 15:04)
+func formatDateTime(isoTimestamp string) string {
+	// Input: 2006-01-02T15:04:05Z -> Output: 2006-01-02 15:04
+	if len(isoTimestamp) >= 16 {
+		return isoTimestamp[:10] + " " + isoTimestamp[11:16]
+	}
+	if len(isoTimestamp) >= 10 {
+		return isoTimestamp[:10]
+	}
+	return isoTimestamp
 }
 
 // FormatJSON formats any value as indented JSON
