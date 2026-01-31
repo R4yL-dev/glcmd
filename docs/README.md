@@ -1,11 +1,11 @@
 # glcmd Documentation
 
-**Version**: 0.3.0
-**Updated**: 2026-01-03
+**Version**: 0.4.0
+**Updated**: 2026-01-31
 
 ## Overview
 
-This directory contains comprehensive documentation for the glcmd project, a LibreView glucose monitoring daemon with GORM-based persistence.
+This directory contains comprehensive documentation for the glcmd project, a LibreView glucose monitoring toolkit consisting of a daemon (`glcore`) and a CLI client (`glcli`).
 
 ## Documentation Files
 
@@ -68,7 +68,7 @@ Environment variable configuration reference:
    ```bash
    git clone <repository>
    cd glcmd
-   go build -o glcmd cmd/glcmd/main.go
+   make
    ```
 
 2. **Create data directory**:
@@ -88,20 +88,27 @@ Environment variable configuration reference:
 
 4. **Run daemon**:
    ```bash
-   ./glcmd
+   ./bin/glcore
+   ```
+
+5. **Query data with CLI** (in another terminal):
+   ```bash
+   ./bin/glcli
+   ./bin/glcli stats --period 7d
+   ./bin/glcli sensor
    ```
 
 ### Running Tests
 
 ```bash
 # Run all tests
-go test ./...
+make test
 
 # Run tests with coverage
-go test -cover ./...
+make test-coverage
 
-# Run specific test package
-go test ./internal/repository/...
+# Run tests with race detector
+make test-race
 ```
 
 ### Production Deployment
@@ -115,7 +122,7 @@ See [ENV_VARS.md](ENV_VARS.md) for production configuration examples including:
 ## Architecture at a Glance
 
 ```
-cmd/glcmd (entry point)
+cmd/glcore (daemon entry point)
     ↓
 internal/daemon (API polling)
     ↓
@@ -128,12 +135,17 @@ internal/repository (data access)
 internal/persistence (database)
     ↓
 internal/domain (models)
+
+cmd/glcli (CLI entry point, Cobra)
+    ↓
+internal/cli (HTTP client + formatters)
 ```
 
 **Key Features**:
-- Unified HTTP API server on port 8080
-- SQLite with WAL mode (current)
-- PostgreSQL ready (future)
+- Two binaries: `glcore` (daemon) and `glcli` (CLI client)
+- Unified HTTP API server on port 8080 with 8 endpoints
+- CLI with Cobra subcommands, shell completion, and JSON output
+- SQLite with WAL mode (current), PostgreSQL ready (future)
 - ACID transactions via Unit of Work
 - Automatic retry with exponential backoff
 - Context-based timeout enforcement
@@ -183,13 +195,13 @@ When contributing to glcmd:
 1. Add to `internal/domain/` with GORM tags
 2. Create repository interface in `internal/repository/interfaces.go`
 3. Implement repository in `internal/repository/`
-4. Add to auto-migration in `cmd/glcmd/main.go`
+4. Add to auto-migration in `cmd/glcore/main.go`
 5. Write tests for critical paths
 
 **New Service**:
 1. Define interface in `internal/service/interfaces.go`
 2. Implement service with constructor injection
-3. Wire up in `cmd/glcmd/main.go`
+3. Wire up in `cmd/glcore/main.go`
 4. Write tests with mocks for repositories
 
 **New Repository Method**:

@@ -2,20 +2,24 @@
 
 ## Overview
 
-**Version**: 0.3.0
-**Date**: 2026-01-03
+**Version**: 0.4.0
+**Date**: 2026-01-31
 
-glcmd is a command-line daemon for retrieving and monitoring blood glucose data from the LibreView API using LibreLinkUp follower account credentials. It provides continuous glucose monitoring in the terminal with local SQLite persistence and an HTTP REST API for programmatic access.
+glcmd is a glucose monitoring toolkit for retrieving and monitoring blood glucose data from the LibreView API using LibreLinkUp follower account credentials. It consists of two binaries:
 
-The daemon polls the LibreView API at configurable intervals, stores measurements in a local database, and exposes glucose data through a unified HTTP API server.
+- **glcore** — Daemon that polls the LibreView API, stores measurements in a local database, and exposes an HTTP REST API
+- **glcli** — Command-line client for querying glucose data, sensor information, and statistics from the glcore API
 
 ## Features
 
 - Continuous glucose monitoring via LibreView API follower account
 - Daemon mode with automatic polling (default: 5 minutes)
+- CLI client with Cobra-based subcommands, shell completion, and JSON output
 - Local database persistence (SQLite default, PostgreSQL supported)
-- Automatic sensor change detection with historical data import
-- HTTP REST API with 6 endpoints (health, metrics, measurements, statistics, sensors)
+- Automatic sensor change detection with unresponsive sensor detection
+- HTTP REST API with 8 endpoints (health, metrics, measurements, statistics, sensors, sensor history, sensor stats)
+- Sensor lifecycle tracking with expiration, duration, and status fields
+- All-time statistics support with SQL-based calculations
 - Robust architecture with retry logic, transactions, and graceful shutdown
 - Structured logging with configurable output
 - Open-source under MIT license
@@ -76,14 +80,27 @@ make
 mkdir -p data
 
 # Run daemon
-./bin/glcmd
+./bin/glcore
+
+# Query data with CLI (in another terminal)
+./bin/glcli
+./bin/glcli stats --period 7d
+./bin/glcli sensor
 ```
 
 ### Build Commands
 
 ```bash
-# Build binary to bin/glcmd
+# Build both binaries (glcore + glcli) to bin/
 make
+
+# Build individually
+make build-glcore
+make build-glcli
+
+# Run directly
+make run-glcore
+make run-glcli
 
 # Install to /usr/local/bin
 make install
@@ -97,42 +114,61 @@ make clean
 
 ## Usage
 
-glcmd runs exclusively in daemon mode. Start the daemon with:
+### Daemon (glcore)
+
+glcore runs the monitoring daemon. Start it with:
 
 ```bash
-./bin/glcmd
-```
-
-### Example Output
-
-```
-time=2026-01-03T02:04:47.896+01:00 level=INFO msg="glcmd starting"
-time=2026-01-03T02:04:47.920+01:00 level=INFO msg="database connected successfully" type=sqlite path=./data/glcmd.db
-time=2026-01-03T02:04:47.925+01:00 level=INFO msg="services initialized successfully"
-time=2026-01-03T02:04:47.930+01:00 level=INFO msg="daemon configuration loaded" fetchInterval=5m displayInterval=1m emojisEnabled=true
-time=2026-01-03T02:04:47.935+01:00 level=INFO msg="unified API server started" port=8080
-time=2026-01-03T02:04:47.940+01:00 level=INFO msg="daemon started, polling LibreView API every 5m"
-time=2026-01-03T02:04:47.945+01:00 level=INFO msg="fetching new measurement"
-time=2026-01-03T02:04:48.120+01:00 level=INFO msg="measurement fetched successfully"
-time=2026-01-03T02:04:48.120+01:00 level=INFO msg="last measurement" value="5.7 mmol/L (102 mg/dL)" trend=➡️ status="🟢 Normal" timestamp="2026-01-03 02:04:28"
-time=2026-01-03T02:05:47.837+01:00 level=INFO msg="last measurement" value="5.7 mmol/L (102 mg/dL)" trend=➡️ status="🟢 Normal" timestamp="2026-01-03 02:04:28"
-time=2026-01-03T02:06:47.891+01:00 level=INFO msg="fetching new measurement"
-time=2026-01-03T02:06:48.039+01:00 level=INFO msg="measurement fetched successfully"
-time=2026-01-03T02:06:48.039+01:00 level=INFO msg="last measurement" value="5.6 mmol/L (100 mg/dL)" trend=➡️ status="🟢 Normal" timestamp="2026-01-03 02:06:27"
+./bin/glcore
 ```
 
 The daemon:
 - Polls LibreView API every 5 minutes (configurable)
 - Displays latest glucose reading every minute (configurable)
 - Stores measurements in SQLite database
-- Detects sensor changes automatically
+- Detects sensor changes automatically and tracks unresponsive sensors
 - Imports historical data on first run
 - Persists data across restarts
 - Exposes HTTP API on port 8080
 
+### CLI Client (glcli)
+
+glcli queries data from a running glcore instance:
+
+```bash
+# Current glucose reading
+./bin/glcli
+
+# Glucose statistics (7 days, 30 days, all-time)
+./bin/glcli stats --period 7d
+./bin/glcli stats --period all
+
+# Glucose history
+./bin/glcli history --last 24h
+./bin/glcli history --start 2026-01-01 --end 2026-01-31
+
+# Current sensor info
+./bin/glcli sensor
+
+# Sensor history and stats
+./bin/glcli sensor history
+./bin/glcli sensor stats
+
+# JSON output for scripting
+./bin/glcli --json
+./bin/glcli --json stats --period 7d
+
+# Custom API URL
+./bin/glcli --api-url http://remote:8080 stats
+# Or via environment variable
+export GLCMD_API_URL=http://remote:8080
+```
+
+Shell completion is available via `glcli completion bash/zsh/fish/powershell`.
+
 ## HTTP API
 
-The daemon exposes a REST API on port 8080 for programmatic access to glucose data.
+glcore exposes a REST API on port 8080 for programmatic access to glucose data.
 
 All data endpoints are versioned with the `/v1` prefix for API stability.
 
@@ -145,8 +181,10 @@ All data endpoints are versioned with the `/v1` prefix for API stability.
 **Data endpoints** (versioned):
 - `GET /v1/measurements/latest` - Most recent glucose reading
 - `GET /v1/measurements` - Paginated measurements with filters
-- `GET /v1/measurements/stats` - Statistics with time-in-range analysis
-- `GET /v1/sensors` - Sensor information
+- `GET /v1/measurements/stats` - Statistics with time-in-range analysis (all-time if no date range)
+- `GET /v1/sensors` - Current sensor information
+- `GET /v1/sensors/history` - Paginated sensor history with date filters
+- `GET /v1/sensors/stats` - Sensor lifecycle statistics
 
 ### Example API Calls
 
@@ -201,22 +239,27 @@ $ curl http://localhost:8080/v1/measurements/latest | jq
 $ curl http://localhost:8080/v1/sensors | jq
 {
   "data": {
-    "sensors": [
-      {
-        "serialNumber": "ABC123XYZ",
-        "activation": "2025-12-28T18:02:35Z",
-        "sensorType": 4,
-        "warrantyDays": 60,
-        "isActive": false
-      }
-    ]
+    "serialNumber": "ABC123XYZ",
+    "activation": "2025-12-28T18:02:35Z",
+    "expiresAt": "2026-02-10T18:02:35Z",
+    "sensorType": 4,
+    "durationDays": 14,
+    "daysRemaining": 10.5,
+    "daysElapsed": 3.5,
+    "isActive": true,
+    "status": "active",
+    "isExpired": false,
+    "isUnresponsive": false
   }
 }
+
+# All-time statistics
+$ curl http://localhost:8080/v1/measurements/stats | jq
 
 # Statistics for last 7 days
 START=$(date -u -d '7 days ago' +%Y-%m-%dT%H:%M:%SZ)
 END=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-curl "http://localhost:8080/measurements/stats?start=$START&end=$END" | jq
+curl "http://localhost:8080/v1/measurements/stats?start=$START&end=$END" | jq
 ```
 
 For complete API documentation with all parameters and response formats, see [API Reference](docs/API.md).

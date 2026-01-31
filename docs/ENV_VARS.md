@@ -1,11 +1,13 @@
 # Environment Variables
 
-**Version**: 0.3.0
-**Updated**: 2026-01-03
+**Version**: 0.4.0
+**Updated**: 2026-01-31
 
 ## Overview
 
 glcmd is configured via environment variables for flexibility across different deployment environments (development, production, containers). All variables have sensible defaults.
+
+The daemon (`glcore`) uses authentication, daemon, and database variables. The CLI client (`glcli`) uses only `GLCMD_API_URL`.
 
 ## Authentication Configuration
 
@@ -92,13 +94,16 @@ GLCMD_ENABLE_EMOJIS=false
 - **Description**: HTTP port for unified API server (health, metrics, glucose endpoints)
 - **Default**: `8080`
 - **Example**: `GLCMD_API_PORT=9090`
+- **Used by**: `glcore`
 - **Endpoints**:
   - `GET /health` - Health status (returns 200 if healthy, 503 if degraded/unhealthy)
   - `GET /metrics` - Runtime metrics (memory, goroutines, uptime)
-  - `GET /measurements/latest` - Latest glucose measurement
-  - `GET /measurements` - Paginated measurements
-  - `GET /measurements/stats` - Statistics with time-in-range
-  - `GET /sensors` - Sensor information
+  - `GET /v1/measurements/latest` - Latest glucose measurement
+  - `GET /v1/measurements` - Paginated measurements
+  - `GET /v1/measurements/stats` - Statistics with time-in-range
+  - `GET /v1/sensors` - Current sensor information
+  - `GET /v1/sensors/history` - Sensor history
+  - `GET /v1/sensors/stats` - Sensor lifecycle statistics
 
 **Usage**:
 ```bash
@@ -111,6 +116,27 @@ GLCMD_API_PORT=9090
 # Check health
 curl http://localhost:8080/health
 curl http://localhost:8080/metrics
+```
+
+---
+
+### GLCMD_API_URL
+- **Description**: Base URL for the glcore API server
+- **Default**: `http://localhost:8080`
+- **Example**: `GLCMD_API_URL=http://192.168.1.100:8080`
+- **Used by**: `glcli`
+- **Note**: Can also be set per-command with the `--api-url` flag
+
+**Usage**:
+```bash
+# Default (local daemon)
+GLCMD_API_URL=http://localhost:8080
+
+# Remote daemon
+GLCMD_API_URL=http://remote-server:8080
+
+# Or use the flag
+glcli --api-url http://remote-server:8080 stats
 ```
 
 ---
@@ -449,7 +475,7 @@ While glcmd doesn't natively support `.env` files, you can load them before star
 go install github.com/joho/godotenv/cmd/godotenv@latest
 
 # Run with .env
-godotenv -f .env ./glcmd daemon
+godotenv -f .env ./bin/glcore
 ```
 
 **Example .env file**:
@@ -485,7 +511,7 @@ Environment="GLCMD_PASSWORD=password"
 Environment="GLCMD_FETCH_INTERVAL=5m"
 Environment="GLCMD_API_PORT=8080"
 
-ExecStart=/opt/glcmd/glcmd
+ExecStart=/opt/glcmd/glcore
 Restart=always
 RestartSec=10
 
@@ -614,7 +640,7 @@ GLCMD_DB_SSLMODE=require
 
 ```bash
 # Application will auto-migrate schema on PostgreSQL
-./glcmd daemon
+./bin/glcore
 ```
 
 ## Upgrading from v0.1.x to v0.2.0
@@ -661,3 +687,4 @@ All other variables remain compatible. Update your configuration files and deplo
 | GLCMD_DISPLAY_INTERVAL | `1m` | duration |
 | GLCMD_ENABLE_EMOJIS | `true` | boolean |
 | GLCMD_API_PORT | `8080` | int |
+| GLCMD_API_URL | `http://localhost:8080` | string |

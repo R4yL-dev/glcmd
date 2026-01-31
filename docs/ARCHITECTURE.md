@@ -1,18 +1,18 @@
 # Architecture Documentation
 
-**Version**: 0.3.0
-**Updated**: 2026-01-03
-**For**: glcmd glucose monitoring daemon
+**Version**: 0.4.0
+**Updated**: 2026-01-31
+**For**: glcmd glucose monitoring toolkit
 
 ## Overview
 
-glcmd is a LibreView glucose monitoring daemon built with a clean, layered architecture designed for maintainability and future scalability. The application polls the LibreView API every 5 minutes and persists glucose measurements, sensor configurations, and user preferences to a SQLite database.
+glcmd is a LibreView glucose monitoring toolkit built with a clean, layered architecture designed for maintainability and future scalability. It consists of two binaries: **glcore** (daemon) and **glcli** (CLI client). The daemon polls the LibreView API every 5 minutes and persists glucose measurements, sensor configurations, and user preferences to a SQLite database. The CLI client queries the daemon's HTTP API.
 
 ## Architecture Layers
 
 ```
 ┌─────────────────────────────────────┐
-│           cmd/glcmd                 │  Entry point, dependency injection
+│           cmd/glcore                │  Daemon entry point, DI
 └─────────────┬───────────────────────┘
               │
 ┌─────────────▼───────────────────────┐
@@ -50,6 +50,17 @@ glcmd is a LibreView glucose monitoring daemon built with a clean, layered archi
 │  - UserPreferences                  │
 │  - DeviceInfo                       │
 │  - GlucoseTargets                   │
+└─────────────────────────────────────┘
+
+┌─────────────────────────────────────┐
+│           cmd/glcli                 │  CLI entry point (Cobra)
+└─────────────┬───────────────────────┘
+              │
+┌─────────────▼───────────────────────┐
+│       internal/cli                  │  HTTP client + formatters
+│  - Client (API consumer)            │
+│  - Formatters (table/text output)   │
+│  - Models (response types)          │
 └─────────────────────────────────────┘
 ```
 
@@ -151,51 +162,82 @@ Unified HTTP API server providing programmatic access to glucose data.
 
 **Responsibilities**:
 - Serves unified REST API on port 8080 (configurable via `GLCMD_API_PORT`)
-- Exposes 6 endpoints: health, metrics, latest measurement, measurements list, statistics, sensors
+- Exposes 8 endpoints: health, metrics, latest measurement, measurements list, statistics, sensors, sensor history, sensor stats
 - Applies middleware: logging, recovery, timeout enforcement
 - Delegates data access to services
-- Formats responses as consistent JSON
+- Formats responses as consistent JSON with domain-level field names
 
 **Integration**:
-- Started alongside daemon in main.go
+- Started alongside daemon in `cmd/glcore/main.go`
 - Shares service layer with daemon
 - Independent lifecycle management
 - See [API.md](API.md) for complete endpoint specification
 
-## Recent Changes (v0.3.0)
+### 7. CLI Layer (`cmd/glcli` + `internal/cli`)
 
-### API Versioning and Stability
-- All data endpoints now versioned with `/v1` prefix for API stability
-- Monitoring endpoints (`/health`, `/metrics`) remain unversioned at root level
-- CORS middleware added for web frontend compatibility
-- Enhanced health check includes database connectivity status
+Command-line client for querying the glcore API.
 
-### Configuration and Code Quality
-- Centralized configuration in `internal/config` package with unified validation
+**Architecture**:
+- `cmd/glcli/cmd/` — Cobra command definitions (root, glucose, sensor, stats, history, version, completion)
+- `internal/cli/client.go` — HTTP client that consumes the glcore REST API
+- `internal/cli/formatter.go` — Text formatters for terminal display
+- `internal/cli/models.go` — Response type definitions for JSON deserialization
+
+**Features**:
+- Cobra-based subcommand tree with shell completion
+- Global `--json` flag for machine-readable output
+- Global `--api-url` flag (default from `GLCMD_API_URL` or `http://localhost:8080`)
+- Formatted table/text output for glucose readings, statistics, and sensor info
+
+**Commands**:
+- `glcli` / `glcli glucose` — Current glucose reading
+- `glcli history` / `glcli glucose history` — Historical measurements
+- `glcli stats` / `glcli glucose stats` — Glucose statistics
+- `glcli sensor` — Current sensor info
+- `glcli sensor history` — Past sensors
+- `glcli sensor stats` — Sensor lifecycle statistics
+
+## Recent Changes (v0.4.0)
+
+### CLI Client
+- New `glcli` binary built with Cobra for querying the glcore API
+- `internal/cli` package with HTTP client, formatters, and response models
+- Subcommands for glucose, sensor, stats, and history with filters and pagination
+- Global `--json` flag and `--api-url` / `GLCMD_API_URL` configuration
+- Shell completion support (bash, zsh, fish, powershell)
+
+### Sensor Lifecycle Refactoring
+- Replaced `IsActive` boolean with `EndedAt` timestamp for accurate lifecycle tracking
+- Added `ExpiresAt` and `DurationDays` fields computed from sensor metadata
+- Added `LastMeasurementAt` field for tracking most recent measurement per sensor
+- Unresponsive sensor detection when measurements stop arriving
+- New API response format with domain-level fields (`SensorResponse` struct)
+
+### New API Endpoints
+- `GET /v1/sensors/history` — Paginated sensor list with start/end date filters
+- `GET /v1/sensors/stats` — Sensor lifecycle statistics (total, completed, durations)
+
+### Statistics Improvements
+- Calculations migrated from Go to SQL for better performance
+- `start`/`end` parameters now optional — returns all-time stats if omitted
+- Removed 90-day limit on time ranges
+
+### Binary Rename
+- Daemon binary renamed from `glcmd` to `glcore` (`cmd/glcmd` → `cmd/glcore`)
+- Makefile updated with `build-glcore`, `build-glcli`, `run-glcore`, `run-glcli` targets
+
+### Previous Changes (v0.3.0)
+- All data endpoints versioned with `/v1` prefix
+- CORS middleware for web frontend compatibility
+- Centralized configuration in `internal/config` package
 - Domain constants for measurement colors, trend arrows, and glucose units
-- Comprehensive end-to-end tests covering full API → Service → Repository → Database flow
-- Improved security: credentials and tokens masked in logs
+- End-to-end tests covering full API → Service → Repository → Database flow
+- Credentials and tokens masked in logs
 
 ### Previous Changes (v0.2.0)
-
-#### API Unification
-- Consolidated separate health/metrics servers into single unified server
-- All endpoints now on port 8080
-- Simplifies deployment and monitoring configuration
-- Reduces resource overhead
-
-### Testing Improvements
-- Comprehensive test suite for critical components
-- Focus on transaction safety and data integrity
-- Unit of Work transaction tests
-- Repository integration tests with in-memory SQLite
-- Retry logic verification
-
-### Architecture Refinements
-- Structured logging with slog throughout codebase
-- Enhanced error handling with context propagation
-- Database health checks on startup
-- Circuit breaker pattern for API resilience
+- Consolidated health/metrics servers into unified server on port 8080
+- Comprehensive test suite for transaction safety and data integrity
+- Structured logging with slog, circuit breaker pattern, database health checks
 
 ## Key Patterns
 
@@ -276,15 +318,17 @@ All layers respect context for:
 
 ### sensor_configs
 - `id`: Primary key
+- `created_at`: Record creation timestamp
+- `updated_at`: Record update timestamp
 - `serial_number`: Sensor serial (unique index)
-- `activation`: Sensor activation timestamp
-- `device_id`: Device identifier
+- `activation`: Sensor activation timestamp (index)
+- `expires_at`: Expected expiration timestamp
+- `ended_at`: Actual end timestamp (null if active)
+- `last_measurement_at`: Most recent measurement timestamp
 - `sensor_type`: Sensor type code
-- `warranty_days`: Warranty duration
-- `is_active`: Active status (index)
-- `low_journey`: Low journey flag
+- `duration_days`: Expected sensor duration in days
 - `detected_at`: First detection timestamp
-- Indexes: `idx_serial` (unique), `idx_active`
+- Indexes: `idx_serial` (unique), `idx_activation`
 
 ### user_preferences
 - `id`: Primary key
@@ -401,11 +445,6 @@ All errors wrapped with context using `fmt.Errorf()` and `%w` verb for error cha
 - Transaction failures logged with rollback details
 
 ## Future Enhancements
-
-### Planned for v0.3.0
-- ASCII graph visualization of glucose trends in terminal
-- Real-time notifications for critical glucose levels
-- PostgreSQL migration for production deployments with migration guide
 
 ### Under Consideration
 - SQL migration tool (e.g., golang-migrate) for versioned schema changes

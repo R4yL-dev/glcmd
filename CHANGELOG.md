@@ -5,6 +5,38 @@ All notable changes to glcmd are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.4.0] - 2026-01-31
+
+### Added
+- **CLI Tool (`glcli`)**: New command-line client built with Cobra for querying the glcore API
+  - `glcli` / `glcli glucose` — Display current glucose reading
+  - `glcli glucose history` / `glcli history` — Browse historical measurements with filters
+  - `glcli glucose stats` / `glcli stats` — View glucose statistics (today, 7d, 14d, 30d, 90d, all)
+  - `glcli sensor` — Show current sensor information with status and lifecycle details
+  - `glcli sensor history` — Browse past sensors with pagination and date filters
+  - `glcli sensor stats` — View sensor lifecycle statistics (average duration, min/max, etc.)
+  - Global `--json` flag for machine-readable output
+  - Global `--api-url` flag and `GLCMD_API_URL` environment variable
+  - Shell completion support (`glcli completion bash/zsh/fish/powershell`)
+- **Sensor History Endpoint**: `GET /v1/sensors/history` — Paginated sensor list with start/end date filters
+- **Sensor Statistics Endpoint**: `GET /v1/sensors/stats` — Sensor lifecycle statistics (total, completed, average duration, min/max)
+- **Unresponsive Sensor Detection**: Sensors with no recent measurements are flagged as unresponsive
+- **Last Measurement Tracking**: `lastMeasurementAt` field on sensor responses tracks most recent reading
+- **All-Time Statistics**: `GET /v1/measurements/stats` now supports all-time queries when `start`/`end` are omitted
+
+### Changed
+- **BREAKING**: Daemon binary renamed from `glcmd` to `glcore` (`cmd/glcmd` → `cmd/glcore`)
+- **BREAKING**: Sensor API response restructured with domain fields:
+  - Removed raw fields (`sn`, `a`, `w`, `pt`, `s`, `lj`, `warranty_days`, `is_active`)
+  - Added domain fields: `serialNumber`, `activation`, `expiresAt`, `endedAt`, `lastMeasurementAt`, `sensorType`, `durationDays`, `daysRemaining`, `daysElapsed`, `actualDays`, `daysPastExpiry`, `isActive`, `status`, `isExpired`, `isUnresponsive`
+- **BREAKING**: Statistics endpoint `start`/`end` parameters are now optional (all-time if omitted); 90-day limit removed
+- Sensor lifecycle model refactored: `IsActive` boolean replaced by `EndedAt` timestamp, added `ExpiresAt` and `DurationDays`
+- Statistics calculations migrated from Go to SQL for better performance
+- Makefile updated with `build-glcore`, `build-glcli`, `run-glcore`, `run-glcli` targets
+
+### Fixed
+- Removed duplicate log entry in daemon
+
 ## [0.3.0] - 2026-01-03
 
 ### Added

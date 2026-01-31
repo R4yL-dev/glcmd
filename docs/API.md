@@ -1,14 +1,14 @@
 # HTTP API Documentation
 
-**Version**: 0.3.0
-**Updated**: 2026-01-03
+**Version**: 0.4.0
+**Updated**: 2026-01-31
 **Status**: Stable
 
-When running in daemon mode, `glcmd` provides a unified HTTP API server on port 8080 (configurable via `GLCMD_API_PORT`). All endpoints return JSON responses with consistent formatting and pass through logging, recovery, and timeout middlewares.
+`glcore` provides a unified HTTP API server on port 8080 (configurable via `GLCMD_API_PORT`). All endpoints return JSON responses with consistent formatting and pass through logging, recovery, and timeout middlewares.
 
 ## API Stability
 
-All endpoints in this documentation are stable and part of the 0.3.0 API contract. Breaking changes will be documented in [CHANGELOG.md](../CHANGELOG.md) and trigger a minor version bump.
+All endpoints in this documentation are stable and part of the 0.4.0 API contract. Breaking changes will be documented in [CHANGELOG.md](../CHANGELOG.md) and trigger a minor version bump.
 
 ## API Versioning
 
@@ -19,6 +19,8 @@ All endpoints in this documentation are stable and part of the 0.3.0 API contrac
 - `/v1/measurements/latest`
 - `/v1/measurements/stats`
 - `/v1/sensors`
+- `/v1/sensors/history`
+- `/v1/sensors/stats`
 
 **Unversioned endpoints** (monitoring):
 - `/health` - Health check
@@ -246,14 +248,16 @@ curl "http://localhost:8080/v1/measurements?limit=100&offset=100" | jq
 
 **GET** `/v1/measurements/stats`
 
-Returns glucose statistics for a specified time period.
+Returns glucose statistics for a specified time period, or all-time statistics if no date range is provided.
 
 **Query Parameters:**
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `start` | string (RFC3339) | **Yes** | Start of time range |
-| `end` | string (RFC3339) | **Yes** | End of time range (max 90 days from start) |
+| `start` | string (RFC3339) | No | Start of time range (must be paired with `end`) |
+| `end` | string (RFC3339) | No | End of time range (must be paired with `start`) |
+
+If both `start` and `end` are omitted, returns all-time statistics. If provided, both must be specified together.
 
 **Response:**
 ```json
@@ -304,6 +308,9 @@ Returns glucose statistics for a specified time period.
 
 **Examples:**
 ```bash
+# Get all-time statistics
+curl "http://localhost:8080/v1/measurements/stats" | jq
+
 # Get statistics for last 7 days
 START=$(date -u -d '7 days ago' +%Y-%m-%dT%H:%M:%SZ)
 END=$(date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -324,48 +331,158 @@ curl "http://localhost:8080/v1/measurements/stats?start=$START&end=$END" | jq
 
 **GET** `/v1/sensors`
 
-Returns information about all sensors and the currently active sensor.
+Returns the current sensor information with lifecycle details.
 
 **Response:**
 ```json
 {
   "data": {
-    "active": {
-      "sensorId": "ABC123XYZ",
-      "sn": "0M0012345678",
-      "a": 150,
-      "w": 14400,
-      "pt": 60,
-      "s": false,
-      "lj": false
-    },
-    "sensors": [
-      {
-        "sensorId": "ABC123XYZ",
-        "sn": "0M0012345678",
-        "a": 150,
-        "w": 14400,
-        "pt": 60,
-        "s": false,
-        "lj": false
-      }
-    ]
+    "serialNumber": "ABC123XYZ",
+    "activation": "2025-12-28T18:02:35Z",
+    "expiresAt": "2026-01-11T18:02:35Z",
+    "endedAt": null,
+    "lastMeasurementAt": "2026-01-05T10:30:00Z",
+    "sensorType": 4,
+    "durationDays": 14,
+    "daysRemaining": 6.3,
+    "daysElapsed": 7.7,
+    "isActive": true,
+    "status": "active",
+    "isExpired": false,
+    "isUnresponsive": false
   }
 }
 ```
 
 **Field Descriptions:**
-- `sensorId` - Unique sensor identifier
-- `sn` - Sensor serial number
-- `a` - Age in minutes
-- `w` - Warmup time in seconds
-- `pt` - Measurement interval in seconds
-- `s` - Sensor started flag
-- `lj` - Libreジャンプ flag
+- `serialNumber` - Sensor serial number
+- `activation` - Sensor activation timestamp
+- `expiresAt` - Expected expiration timestamp
+- `endedAt` - Actual end timestamp (null if still active)
+- `lastMeasurementAt` - Timestamp of most recent measurement from this sensor (null if none)
+- `sensorType` - Sensor type code
+- `durationDays` - Expected sensor duration in days
+- `daysRemaining` - Days remaining until expiration (active sensors only)
+- `daysElapsed` - Days since activation
+- `actualDays` - Actual duration in days (ended sensors only)
+- `daysPastExpiry` - Days past expected expiration (expired sensors only)
+- `isActive` - Whether the sensor is currently active
+- `status` - Sensor status (`active`, `ended`, `expired`, `unresponsive`)
+- `isExpired` - Whether the sensor has passed its expected expiration
+- `isUnresponsive` - Whether the sensor has stopped providing measurements
 
 **Example:**
 ```bash
 curl http://localhost:8080/v1/sensors | jq
+```
+
+---
+
+### 7. Sensor History
+
+**GET** `/v1/sensors/history`
+
+Returns a paginated list of all sensors with optional date filters.
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `limit` | integer | No | 100 | Number of results per page (1-1000) |
+| `offset` | integer | No | 0 | Number of results to skip |
+| `start` | string (RFC3339) | No | - | Filter sensors activated after this time |
+| `end` | string (RFC3339) | No | - | Filter sensors activated before this time |
+
+**Response:**
+```json
+{
+  "data": [
+    {
+      "serialNumber": "ABC123XYZ",
+      "activation": "2025-12-28T18:02:35Z",
+      "expiresAt": "2026-01-11T18:02:35Z",
+      "endedAt": "2026-01-10T14:22:00Z",
+      "lastMeasurementAt": "2026-01-10T14:20:00Z",
+      "sensorType": 4,
+      "durationDays": 14,
+      "daysElapsed": 12.8,
+      "actualDays": 12.8,
+      "isActive": false,
+      "status": "ended",
+      "isExpired": false,
+      "isUnresponsive": false
+    }
+  ],
+  "pagination": {
+    "limit": 100,
+    "offset": 0,
+    "total": 5,
+    "hasMore": false
+  }
+}
+```
+
+**Examples:**
+```bash
+# Get all sensors
+curl "http://localhost:8080/v1/sensors/history" | jq
+
+# Get sensors from last 6 months
+START=$(date -u -d '6 months ago' +%Y-%m-%dT%H:%M:%SZ)
+curl "http://localhost:8080/v1/sensors/history?start=$START" | jq
+```
+
+---
+
+### 8. Sensor Statistics
+
+**GET** `/v1/sensors/stats`
+
+Returns aggregated sensor lifecycle statistics.
+
+**Response:**
+```json
+{
+  "data": {
+    "statistics": {
+      "totalSensors": 5,
+      "endedSensors": 4,
+      "avgDuration": 13.2,
+      "minDuration": 11.5,
+      "maxDuration": 14.8,
+      "avgExpected": 14.0,
+      "avgDifference": -0.8
+    },
+    "current": {
+      "serialNumber": "ABC123XYZ",
+      "activation": "2025-12-28T18:02:35Z",
+      "expiresAt": "2026-01-11T18:02:35Z",
+      "sensorType": 4,
+      "durationDays": 14,
+      "daysRemaining": 6.3,
+      "daysElapsed": 7.7,
+      "isActive": true,
+      "status": "active",
+      "isExpired": false,
+      "isUnresponsive": false
+    }
+  }
+}
+```
+
+**Field Descriptions:**
+- `statistics.totalSensors` - Total number of sensors tracked
+- `statistics.endedSensors` - Number of completed (ended) sensors
+- `statistics.avgDuration` - Average actual duration in days (ended sensors)
+- `statistics.minDuration` - Shortest sensor duration in days
+- `statistics.maxDuration` - Longest sensor duration in days
+- `statistics.avgExpected` - Average expected duration in days
+- `statistics.avgDifference` - Average difference between actual and expected duration (negative = ended early)
+- `current` - Current active sensor information (null if none)
+
+**Example:**
+```bash
+curl http://localhost:8080/v1/sensors/stats | jq
 ```
 
 ---
@@ -433,19 +550,31 @@ curl -s "$BASE_URL/metrics" | jq
 
 # Get latest measurement
 echo -e "\n=== Latest Measurement ==="
-curl -s "$BASE_URL/measurements/latest" | jq
+curl -s "$BASE_URL/v1/measurements/latest" | jq
 
 # Get last 10 measurements
 echo -e "\n=== Last 10 Measurements ==="
-curl -s "$BASE_URL/measurements?limit=10" | jq
+curl -s "$BASE_URL/v1/measurements?limit=10" | jq
+
+# Get all-time statistics
+echo -e "\n=== All-Time Statistics ==="
+curl -s "$BASE_URL/v1/measurements/stats" | jq
 
 # Get 24h statistics
 START=$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%SZ)
 END=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 echo -e "\n=== 24h Statistics ==="
-curl -s "$BASE_URL/measurements/stats?start=$START&end=$END" | jq
+curl -s "$BASE_URL/v1/measurements/stats?start=$START&end=$END" | jq
 
-# Get sensor info
-echo -e "\n=== Sensor Info ==="
-curl -s "$BASE_URL/sensors" | jq
+# Get current sensor
+echo -e "\n=== Current Sensor ==="
+curl -s "$BASE_URL/v1/sensors" | jq
+
+# Get sensor history
+echo -e "\n=== Sensor History ==="
+curl -s "$BASE_URL/v1/sensors/history" | jq
+
+# Get sensor stats
+echo -e "\n=== Sensor Statistics ==="
+curl -s "$BASE_URL/v1/sensors/stats" | jq
 ```
