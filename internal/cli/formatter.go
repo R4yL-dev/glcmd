@@ -270,6 +270,91 @@ func FormatStatistics(stats *StatisticsData) string {
 	return sb.String()
 }
 
+// FormatSensorStats formats sensor statistics data for display
+func FormatSensorStats(data *SensorStatisticsData) string {
+	var sb strings.Builder
+
+	sb.WriteString("📊 Sensor Statistics\n")
+	sb.WriteString("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n")
+
+	// Summary section
+	sb.WriteString("📈 Summary\n")
+	sb.WriteString(fmt.Sprintf("   Total sensors:  %d\n", data.Statistics.TotalSensors))
+	sb.WriteString(fmt.Sprintf("   Completed:      %d\n", data.Statistics.EndedSensors))
+	sb.WriteString("\n")
+
+	// Duration section (only if there are completed sensors)
+	if data.Statistics.EndedSensors > 0 {
+		sb.WriteString("⏱️  Duration (completed sensors)\n")
+		sb.WriteString(fmt.Sprintf("   Average:  %.1f days (expected: %.1f)\n",
+			data.Statistics.AvgDuration, data.Statistics.AvgExpected))
+		sb.WriteString(fmt.Sprintf("   Min:      %.1f days\n", data.Statistics.MinDuration))
+		sb.WriteString(fmt.Sprintf("   Max:      %.1f days\n", data.Statistics.MaxDuration))
+		sb.WriteString(fmt.Sprintf("   Avg diff: %+.1f days vs expected\n", data.Statistics.AvgDifference))
+		sb.WriteString("\n")
+	}
+
+	// Current sensor section
+	if data.Current != nil {
+		sb.WriteString("🔋 Current Sensor\n")
+		sb.WriteString(fmt.Sprintf("   Serial:    %s\n", data.Current.SerialNumber))
+		if data.Current.DaysRemaining != nil {
+			progress := data.Current.DaysElapsed / float64(data.Current.DurationDays) * 100
+			if progress > 100 {
+				progress = 100
+			}
+			sb.WriteString(fmt.Sprintf("   Progress:  %s %.0f%%\n",
+				formatProgressBar(progress, 24), progress))
+			sb.WriteString(fmt.Sprintf("   %.1f / %d.0 days (%.1f remaining)",
+				data.Current.DaysElapsed, data.Current.DurationDays, *data.Current.DaysRemaining))
+		} else {
+			sb.WriteString(fmt.Sprintf("   Status:    %s", data.Current.Status))
+		}
+	}
+
+	return sb.String()
+}
+
+// FormatSensorTable formats a list of sensors as a table
+func FormatSensorTable(sensors []SensorInfo, total int) string {
+	if len(sensors) == 0 {
+		return "No sensors found"
+	}
+
+	var sb strings.Builder
+
+	// Table header
+	sb.WriteString("┌──────────────┬─────────────────────┬─────────────────────┬───────────┬──────────┐\n")
+	sb.WriteString("│ Serial       │ Activation          │ Ended               │ Days Used │ Status   │\n")
+	sb.WriteString("├──────────────┼─────────────────────┼─────────────────────┼───────────┼──────────┤\n")
+
+	for _, s := range sensors {
+		activation := formatDateTime(s.Activation)
+		ended := "-"
+		if s.EndedAt != nil {
+			ended = formatDateTime(*s.EndedAt)
+		}
+		daysUsed := fmt.Sprintf("%.1f", s.DaysElapsed)
+		if s.ActualDays != nil {
+			daysUsed = fmt.Sprintf("%.1f", *s.ActualDays)
+		}
+
+		sb.WriteString(fmt.Sprintf("│ %-12s │ %-19s │ %-19s │ %-9s │ %-8s │\n",
+			s.SerialNumber, activation, ended, daysUsed, s.Status))
+	}
+
+	// Table footer
+	sb.WriteString("└──────────────┴─────────────────────┴─────────────────────┴───────────┴──────────┘\n")
+
+	if total > len(sensors) {
+		sb.WriteString(fmt.Sprintf("Showing %d of %d sensors", len(sensors), total))
+	} else {
+		sb.WriteString(fmt.Sprintf("Showing %d sensors", len(sensors)))
+	}
+
+	return sb.String()
+}
+
 // formatDateShort extracts just the date part from an ISO timestamp
 func formatDateShort(isoDate string) string {
 	if len(isoDate) >= 10 {

@@ -41,9 +41,13 @@ type SensorInfo struct {
 	SerialNumber      string   `json:"serialNumber"`
 	Activation        string   `json:"activation"`
 	ExpiresAt         string   `json:"expiresAt"`
+	EndedAt           *string  `json:"endedAt,omitempty"`
 	LastMeasurementAt *string  `json:"lastMeasurementAt,omitempty"`
+	SensorType        int      `json:"sensorType"`
+	DurationDays      int      `json:"durationDays"`
 	DaysRemaining     *float64 `json:"daysRemaining,omitempty"`
 	DaysElapsed       float64  `json:"daysElapsed"`
+	ActualDays        *float64 `json:"actualDays,omitempty"`
 	DaysPastExpiry    *float64 `json:"daysPastExpiry,omitempty"`
 	IsActive          bool     `json:"isActive"`
 	Status            string   `json:"status"`
@@ -183,6 +187,66 @@ func (c *Client) GetStatistics(ctx context.Context, start, end *time.Time) (*Sta
 	}
 
 	var result StatisticsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	return &result, nil
+}
+
+// GetSensorHistory fetches sensor history with optional filtering
+func (c *Client) GetSensorHistory(ctx context.Context, params SensorHistoryParams) (*SensorListResponse, error) {
+	path := "/v1/sensors/history?"
+	queryParts := []string{}
+
+	if params.Start != nil {
+		queryParts = append(queryParts, fmt.Sprintf("start=%s", params.Start.UTC().Format(time.RFC3339)))
+	}
+	if params.End != nil {
+		queryParts = append(queryParts, fmt.Sprintf("end=%s", params.End.UTC().Format(time.RFC3339)))
+	}
+	if params.Limit > 0 {
+		queryParts = append(queryParts, fmt.Sprintf("limit=%d", params.Limit))
+	}
+
+	for i, part := range queryParts {
+		if i > 0 {
+			path += "&"
+		}
+		path += part
+	}
+
+	resp, err := c.get(ctx, path)
+	if err != nil {
+		return nil, fmt.Errorf("cannot connect to glcore at %s: %w", c.baseURL, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("API returned status %d", resp.StatusCode)
+	}
+
+	var result SensorListResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	return &result, nil
+}
+
+// GetSensorStatistics fetches sensor lifecycle statistics
+func (c *Client) GetSensorStatistics(ctx context.Context) (*SensorStatisticsResponse, error) {
+	resp, err := c.get(ctx, "/v1/sensors/stats")
+	if err != nil {
+		return nil, fmt.Errorf("cannot connect to glcore at %s: %w", c.baseURL, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("API returned status %d", resp.StatusCode)
+	}
+
+	var result SensorStatisticsResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}

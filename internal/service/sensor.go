@@ -115,6 +115,52 @@ func (s *SensorServiceImpl) HandleSensorChange(ctx context.Context, newSensor *d
 	})
 }
 
+// SensorStats contains aggregated sensor lifecycle statistics
+type SensorStats struct {
+	TotalSensors  int     `json:"totalSensors"`
+	EndedSensors  int     `json:"endedSensors"`
+	AvgDuration   float64 `json:"avgDuration"`   // days
+	MinDuration   float64 `json:"minDuration"`
+	MaxDuration   float64 `json:"maxDuration"`
+	AvgExpected   float64 `json:"avgExpected"`
+	AvgDifference float64 `json:"avgDifference"` // avg_duration - avg_expected
+}
+
+// GetSensorsWithFilters returns filtered and paginated sensors with total count.
+func (s *SensorServiceImpl) GetSensorsWithFilters(ctx context.Context, filters repository.SensorFilters, limit, offset int) ([]*domain.SensorConfig, int64, error) {
+	sensors, err := s.repo.FindWithFilters(ctx, filters, limit, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	total, err := s.repo.CountWithFilters(ctx, filters)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return sensors, total, nil
+}
+
+// GetStatistics returns aggregated sensor lifecycle statistics.
+func (s *SensorServiceImpl) GetStatistics(ctx context.Context) (*SensorStats, error) {
+	result, err := s.repo.GetStatistics(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	stats := &SensorStats{
+		TotalSensors:  int(result.TotalSensors),
+		EndedSensors:  int(result.EndedSensors),
+		AvgDuration:   result.AvgDuration,
+		MinDuration:   result.MinDuration,
+		MaxDuration:   result.MaxDuration,
+		AvgExpected:   result.AvgExpected,
+		AvgDifference: result.AvgDuration - result.AvgExpected,
+	}
+
+	return stats, nil
+}
+
 // UpdateLastMeasurementIfNewer updates the LastMeasurementAt field of the current sensor
 // only if the provided timestamp is newer than the existing one.
 // This handles historical measurements that may arrive out of order.

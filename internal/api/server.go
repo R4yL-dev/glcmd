@@ -82,6 +82,8 @@ func (s *Server) setupRouter() *chi.Mux {
 
 		// Sensor routes
 		r.Get("/sensors", s.handleGetSensors)
+		r.Get("/sensors/history", s.handleGetSensorHistory)
+		r.Get("/sensors/stats", s.handleGetSensorStatistics)
 	})
 
 	return r

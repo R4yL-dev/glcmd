@@ -51,6 +51,12 @@ type SensorService interface {
 	// UpdateLastMeasurementIfNewer updates the LastMeasurementAt field of the current sensor
 	// only if the provided timestamp is newer than the existing one.
 	UpdateLastMeasurementIfNewer(ctx context.Context, timestamp time.Time) error
+
+	// GetSensorsWithFilters returns filtered and paginated sensors with total count
+	GetSensorsWithFilters(ctx context.Context, filters repository.SensorFilters, limit, offset int) ([]*domain.SensorConfig, int64, error)
+
+	// GetStatistics returns aggregated sensor lifecycle statistics
+	GetStatistics(ctx context.Context) (*SensorStats, error)
 }
 
 // ConfigService defines the interface for configuration management (user, device, targets).

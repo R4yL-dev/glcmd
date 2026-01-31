@@ -74,3 +74,38 @@ type MeasurementParams struct {
 	End   *time.Time
 	Limit int
 }
+
+// SensorListResponse represents the API response for sensors list
+type SensorListResponse struct {
+	Data       []SensorInfo   `json:"data"`
+	Pagination PaginationInfo `json:"pagination"`
+}
+
+// SensorHistoryParams contains parameters for fetching sensor history
+type SensorHistoryParams struct {
+	Start *time.Time
+	End   *time.Time
+	Limit int
+}
+
+// SensorStatisticsResponse represents the API response for sensor statistics
+type SensorStatisticsResponse struct {
+	Data SensorStatisticsData `json:"data"`
+}
+
+// SensorStatisticsData contains sensor statistics
+type SensorStatisticsData struct {
+	Statistics SensorStatsDetails `json:"statistics"`
+	Current    *SensorInfo        `json:"current,omitempty"`
+}
+
+// SensorStatsDetails contains detailed sensor lifecycle statistics
+type SensorStatsDetails struct {
+	TotalSensors  int     `json:"totalSensors"`
+	EndedSensors  int     `json:"endedSensors"`
+	AvgDuration   float64 `json:"avgDuration"`
+	MinDuration   float64 `json:"minDuration"`
+	MaxDuration   float64 `json:"maxDuration"`
+	AvgExpected   float64 `json:"avgExpected"`
+	AvgDifference float64 `json:"avgDifference"`
+}

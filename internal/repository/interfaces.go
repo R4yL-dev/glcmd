@@ -67,6 +67,22 @@ type MeasurementRepository interface {
 	GetStatistics(ctx context.Context, filters StatisticsFilters) (*StatisticsResult, error)
 }
 
+// SensorFilters defines filter criteria for querying sensors
+type SensorFilters struct {
+	StartTime *time.Time // filter on activation
+	EndTime   *time.Time
+}
+
+// SensorStatisticsResult contains aggregated sensor statistics computed by SQL
+type SensorStatisticsResult struct {
+	TotalSensors int64
+	EndedSensors int64
+	AvgDuration  float64 // average days of use (ended sensors)
+	MinDuration  float64
+	MaxDuration  float64
+	AvgExpected  float64 // average expected days
+}
+
 // SensorRepository defines the interface for sensor configuration persistence.
 type SensorRepository interface {
 	// Save creates or updates a sensor (upsert by serial number)
@@ -80,6 +96,15 @@ type SensorRepository interface {
 
 	// FindAll returns all sensors ordered by detected_at descending
 	FindAll(ctx context.Context) ([]*domain.SensorConfig, error)
+
+	// FindWithFilters returns sensors matching filters with pagination
+	FindWithFilters(ctx context.Context, filters SensorFilters, limit, offset int) ([]*domain.SensorConfig, error)
+
+	// CountWithFilters returns total count of sensors matching filters
+	CountWithFilters(ctx context.Context, filters SensorFilters) (int64, error)
+
+	// GetStatistics returns aggregated sensor lifecycle statistics computed by SQL
+	GetStatistics(ctx context.Context) (*SensorStatisticsResult, error)
 
 	// SetEndedAt marks a sensor as ended (replaced by a new sensor)
 	SetEndedAt(ctx context.Context, serial string, endedAt time.Time) error

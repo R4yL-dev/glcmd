@@ -9,6 +9,7 @@ import (
 
 	"github.com/R4yL-dev/glcmd/internal/domain"
 	"github.com/R4yL-dev/glcmd/internal/persistence"
+	"github.com/R4yL-dev/glcmd/internal/repository"
 )
 
 // Mock implementations
@@ -19,6 +20,9 @@ type MockSensorRepository struct {
 	SetEndedAtFunc         func(ctx context.Context, serial string, endedAt time.Time) error
 	FindAllFunc            func(ctx context.Context) ([]*domain.SensorConfig, error)
 	FindBySerialNumberFunc func(ctx context.Context, serial string) (*domain.SensorConfig, error)
+	FindWithFiltersFunc    func(ctx context.Context, filters repository.SensorFilters, limit, offset int) ([]*domain.SensorConfig, error)
+	CountWithFiltersFunc   func(ctx context.Context, filters repository.SensorFilters) (int64, error)
+	GetStatisticsFunc      func(ctx context.Context) (*repository.SensorStatisticsResult, error)
 }
 
 func (m *MockSensorRepository) FindCurrent(ctx context.Context) (*domain.SensorConfig, error) {
@@ -54,6 +58,27 @@ func (m *MockSensorRepository) FindBySerialNumber(ctx context.Context, serial st
 		return m.FindBySerialNumberFunc(ctx, serial)
 	}
 	return nil, persistence.ErrNotFound
+}
+
+func (m *MockSensorRepository) FindWithFilters(ctx context.Context, filters repository.SensorFilters, limit, offset int) ([]*domain.SensorConfig, error) {
+	if m.FindWithFiltersFunc != nil {
+		return m.FindWithFiltersFunc(ctx, filters, limit, offset)
+	}
+	return []*domain.SensorConfig{}, nil
+}
+
+func (m *MockSensorRepository) CountWithFilters(ctx context.Context, filters repository.SensorFilters) (int64, error) {
+	if m.CountWithFiltersFunc != nil {
+		return m.CountWithFiltersFunc(ctx, filters)
+	}
+	return 0, nil
+}
+
+func (m *MockSensorRepository) GetStatistics(ctx context.Context) (*repository.SensorStatisticsResult, error) {
+	if m.GetStatisticsFunc != nil {
+		return m.GetStatisticsFunc(ctx)
+	}
+	return &repository.SensorStatisticsResult{}, nil
 }
 
 type MockUnitOfWork struct {

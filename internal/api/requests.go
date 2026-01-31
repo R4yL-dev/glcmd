@@ -107,6 +107,35 @@ func parseMeasurementFilters(r *http.Request) (repository.MeasurementFilters, er
 	return filters, nil
 }
 
+// parseSensorFilters parses filter parameters for sensor queries
+func parseSensorFilters(r *http.Request) (repository.SensorFilters, error) {
+	filters := repository.SensorFilters{}
+
+	if startStr := r.URL.Query().Get("start"); startStr != "" {
+		startTime, err := time.Parse(time.RFC3339, startStr)
+		if err != nil {
+			return filters, NewValidationError("invalid start time format (use RFC3339)")
+		}
+		filters.StartTime = &startTime
+	}
+
+	if endStr := r.URL.Query().Get("end"); endStr != "" {
+		endTime, err := time.Parse(time.RFC3339, endStr)
+		if err != nil {
+			return filters, NewValidationError("invalid end time format (use RFC3339)")
+		}
+		filters.EndTime = &endTime
+	}
+
+	if filters.StartTime != nil && filters.EndTime != nil {
+		if filters.EndTime.Before(*filters.StartTime) {
+			return filters, NewValidationError("end time must be after start time")
+		}
+	}
+
+	return filters, nil
+}
+
 // parseStatisticsParams parses and validates statistics request parameters.
 // Returns nil for start/end if not provided (all time query).
 // Both parameters must be provided together or not at all.

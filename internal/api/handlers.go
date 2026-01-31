@@ -192,6 +192,74 @@ func (s *Server) handleGetSensors(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// handleGetSensorHistory handles GET /sensors/history
+func (s *Server) handleGetSensorHistory(w http.ResponseWriter, r *http.Request) {
+	limit, offset, err := parsePaginationParams(r)
+	if err != nil {
+		handleError(w, err, s.logger)
+		return
+	}
+
+	filters, err := parseSensorFilters(r)
+	if err != nil {
+		handleError(w, err, s.logger)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	sensors, total, err := s.sensorService.GetSensorsWithFilters(ctx, filters, limit, offset)
+	if err != nil {
+		handleError(w, err, s.logger)
+		return
+	}
+
+	data := make([]*SensorResponse, 0, len(sensors))
+	for _, sensor := range sensors {
+		data = append(data, NewSensorResponse(sensor))
+	}
+
+	response := SensorListResponse{
+		Data:       data,
+		Pagination: newPaginationMetadata(limit, offset, total),
+	}
+
+	if err := writeJSONResponse(w, http.StatusOK, response); err != nil {
+		s.logger.Error("failed to write response", "error", err)
+	}
+}
+
+// handleGetSensorStatistics handles GET /sensors/stats
+func (s *Server) handleGetSensorStatistics(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	stats, err := s.sensorService.GetStatistics(ctx)
+	if err != nil {
+		handleError(w, err, s.logger)
+		return
+	}
+
+	// Get current sensor (optional)
+	var currentResp *SensorResponse
+	currentSensor, err := s.sensorService.GetCurrentSensor(ctx)
+	if err == nil && currentSensor != nil {
+		currentResp = NewSensorResponse(currentSensor)
+	}
+
+	response := SensorStatisticsResponse{
+		Data: SensorStatisticsData{
+			Statistics: *stats,
+			Current:    currentResp,
+		},
+	}
+
+	if err := writeJSONResponse(w, http.StatusOK, response); err != nil {
+		s.logger.Error("failed to write response", "error", err)
+	}
+}
+
 // handleHealth handles GET /health
 // Returns daemon health status with appropriate HTTP status code
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {

@@ -93,6 +93,23 @@ type SensorResponse struct {
 	IsUnresponsive    bool     `json:"isUnresponsive"`
 }
 
+// SensorListResponse represents a paginated list of sensors
+type SensorListResponse struct {
+	Data       []*SensorResponse  `json:"data"`
+	Pagination PaginationMetadata `json:"pagination"`
+}
+
+// SensorStatisticsResponse represents sensor statistics response
+type SensorStatisticsResponse struct {
+	Data SensorStatisticsData `json:"data"`
+}
+
+// SensorStatisticsData contains sensor lifecycle statistics
+type SensorStatisticsData struct {
+	Statistics service.SensorStats `json:"statistics"`
+	Current    *SensorResponse     `json:"current,omitempty"`
+}
+
 // NewSensorResponse creates a SensorResponse from a domain.SensorConfig
 func NewSensorResponse(s *domain.SensorConfig) *SensorResponse {
 	resp := &SensorResponse{
