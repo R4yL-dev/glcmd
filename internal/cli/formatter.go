@@ -28,13 +28,24 @@ func TrendArrowText(arrow *int) string {
 	}
 }
 
-// FormatGlucoseShort formats a glucose reading as a single line
+// FormatGlucoseShort formats a glucose reading as two lines with emoji status
 func FormatGlucoseShort(g *GlucoseReading) string {
+	var sb strings.Builder
+
+	// Line 1: value + trend
 	trend := TrendArrowText(g.TrendArrow)
 	if trend != "" {
-		return fmt.Sprintf("%.1f mmol/L (%d mg/dL) %s", g.Value, g.ValueInMgPerDl, trend)
+		sb.WriteString(fmt.Sprintf("🩸 %.1f mmol/L (%d mg/dL) %s", g.Value, g.ValueInMgPerDl, trend))
+	} else {
+		sb.WriteString(fmt.Sprintf("🩸 %.1f mmol/L (%d mg/dL)", g.Value, g.ValueInMgPerDl))
 	}
-	return fmt.Sprintf("%.1f mmol/L (%d mg/dL)", g.Value, g.ValueInMgPerDl)
+
+	// Line 2: colored status + time
+	status := formatStatus(g.IsLow, g.IsHigh)
+	timeStr := g.Timestamp.Local().Format("15:04")
+	sb.WriteString(fmt.Sprintf("\n   %s | %s", status, timeStr))
+
+	return sb.String()
 }
 
 // FormatGlucose formats a glucose reading with full details
@@ -76,28 +87,40 @@ func FormatSensor(s *SensorInfo) string {
 
 	switch s.Status {
 	case "running":
-		// Active sensor: remaining time is most important
+		sb.WriteString(fmt.Sprintf("🔋 Sensor %s\n", s.SerialNumber))
 		if s.DaysRemaining != nil {
-			sb.WriteString(fmt.Sprintf("%.1f days remaining | %.1f days active\n",
-				*s.DaysRemaining, s.DaysElapsed))
+			totalDays := float64(s.DurationDays)
+			progress := s.DaysElapsed / totalDays * 100
+			if progress > 100 {
+				progress = 100
+			}
+			sb.WriteString(fmt.Sprintf("   %s %.0f%%\n",
+				formatProgressBar(progress, 24), progress))
+			sb.WriteString(fmt.Sprintf("   %.1f / %.1f days (%.1f remaining)\n",
+				s.DaysElapsed, totalDays, *s.DaysRemaining))
 		}
-		sb.WriteString(fmt.Sprintf("Sensor: %s\n", s.SerialNumber))
-		sb.WriteString(fmt.Sprintf("Expires: %s", expiresDateTime))
+		sb.WriteString(fmt.Sprintf("   Expires: %s", expiresDateTime))
 
 	case "unresponsive":
-		// Unresponsive: alert first, then time info
+		sb.WriteString(fmt.Sprintf("⚠️  Sensor %s\n", s.SerialNumber))
 		if s.LastMeasurementAt != nil {
 			lastDateTime := formatDateTime(*s.LastMeasurementAt)
-			sb.WriteString(fmt.Sprintf("Unresponsive since %s\n", lastDateTime))
+			sb.WriteString(fmt.Sprintf("   Unresponsive since %s\n", lastDateTime))
 		} else {
-			sb.WriteString("Unresponsive\n")
+			sb.WriteString("   Unresponsive\n")
 		}
 		if s.DaysRemaining != nil {
-			sb.WriteString(fmt.Sprintf("%.1f days remaining | %.1f days active\n",
-				*s.DaysRemaining, s.DaysElapsed))
+			totalDays := float64(s.DurationDays)
+			progress := s.DaysElapsed / totalDays * 100
+			if progress > 100 {
+				progress = 100
+			}
+			sb.WriteString(fmt.Sprintf("   %s %.0f%%\n",
+				formatProgressBar(progress, 24), progress))
+			sb.WriteString(fmt.Sprintf("   %.1f / %.1f days (%.1f remaining)\n",
+				s.DaysElapsed, totalDays, *s.DaysRemaining))
 		}
-		sb.WriteString(fmt.Sprintf("Sensor: %s\n", s.SerialNumber))
-		sb.WriteString(fmt.Sprintf("Expires: %s", expiresDateTime))
+		sb.WriteString(fmt.Sprintf("   Expires: %s", expiresDateTime))
 
 	case "expired":
 		// Expired: status with datetime
@@ -153,9 +176,9 @@ func FormatMeasurementTable(measurements []GlucoseReading, total int) string {
 	var sb strings.Builder
 
 	// Table header
-	sb.WriteString("┌─────────────────────┬───────────────┬──────────────────┬────────┐\n")
-	sb.WriteString("│ Date                │ mmol/L (mg/dL)│ Trend            │ Status │\n")
-	sb.WriteString("├─────────────────────┼───────────────┼──────────────────┼────────┤\n")
+	sb.WriteString("┌─────────────────────┬───────────────┬──────────────────┬───────────┐\n")
+	sb.WriteString("│ Date                │ mmol/L (mg/dL)│ Trend            │ Status    │\n")
+	sb.WriteString("├─────────────────────┼───────────────┼──────────────────┼───────────┤\n")
 
 	// Table rows
 	for _, m := range measurements {
@@ -164,12 +187,12 @@ func FormatMeasurementTable(measurements []GlucoseReading, total int) string {
 		trend := formatTrendShort(m.TrendArrow)
 		status := formatStatus(m.IsLow, m.IsHigh)
 
-		sb.WriteString(fmt.Sprintf("│ %-19s │ %-13s │ %-16s │ %-6s │\n",
+		sb.WriteString(fmt.Sprintf("│ %-19s │ %-13s │ %-16s │ %-8s │\n",
 			date, glucose, trend, status))
 	}
 
 	// Table footer
-	sb.WriteString("└─────────────────────┴───────────────┴──────────────────┴────────┘\n")
+	sb.WriteString("└─────────────────────┴───────────────┴──────────────────┴───────────┘\n")
 
 	// Summary line
 	if total > len(measurements) {
@@ -179,7 +202,7 @@ func FormatMeasurementTable(measurements []GlucoseReading, total int) string {
 	}
 
 	// Legend for status symbols
-	sb.WriteString("Status: ✓ Normal | ⚠ LOW | ⚠ HIGH")
+	sb.WriteString("Status: 🟢 Normal | 🟡 LOW | 🔴 HIGH")
 
 	return sb.String()
 }
@@ -206,15 +229,15 @@ func formatTrendShort(arrow *int) string {
 	}
 }
 
-// formatStatus returns a status indicator
+// formatStatus returns a status indicator with colored emoji
 func formatStatus(isLow, isHigh bool) string {
 	if isLow {
-		return "⚠ LOW"
+		return "🟡 LOW"
 	}
 	if isHigh {
-		return "⚠ HIGH"
+		return "🔴 HIGH"
 	}
-	return "✓"
+	return "🟢 Normal"
 }
 
 // FormatStatistics formats statistics data for display
@@ -261,7 +284,8 @@ func FormatStatistics(stats *StatisticsData) string {
 			formatProgressBar(stats.TimeInRange.InRange, 24), stats.TimeInRange.InRange))
 		sb.WriteString(fmt.Sprintf("   ⬇️  Below: %.1f%%  |  ⬆️  Above: %.1f%%\n",
 			stats.TimeInRange.BelowRange, stats.TimeInRange.AboveRange))
-		sb.WriteString(fmt.Sprintf("   Target: %d-%d mg/dL",
+		sb.WriteString(fmt.Sprintf("   Target: %.1f-%.1f mmol/L (%d-%d mg/dL)",
+			stats.TimeInRange.TargetLow, stats.TimeInRange.TargetHigh,
 			stats.TimeInRange.TargetLowMgDl, stats.TimeInRange.TargetHighMgDl))
 	} else {
 		sb.WriteString("   No glucose targets configured")
@@ -275,7 +299,7 @@ func FormatSensorStats(data *SensorStatisticsData) string {
 	var sb strings.Builder
 
 	sb.WriteString("📊 Sensor Statistics\n")
-	sb.WriteString("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n")
+	sb.WriteString("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n")
 
 	// Summary section
 	sb.WriteString("📈 Summary\n")
@@ -285,7 +309,7 @@ func FormatSensorStats(data *SensorStatisticsData) string {
 
 	// Duration section (only if there are completed sensors)
 	if data.Statistics.EndedSensors > 0 {
-		sb.WriteString("⏱️  Duration (completed sensors)\n")
+		sb.WriteString("⏱️ Duration (completed sensors)\n")
 		sb.WriteString(fmt.Sprintf("   Average:  %.1f days (expected: %.1f)\n",
 			data.Statistics.AvgDuration, data.Statistics.AvgExpected))
 		sb.WriteString(fmt.Sprintf("   Min:      %.1f days\n", data.Statistics.MinDuration))

@@ -337,6 +337,9 @@ func (d *Daemon) initialFetch() error {
 	}
 	slog.Debug("sensor configuration stored", "serialNumber", sensor.SN)
 
+	// Store glucose targets from /connections response
+	d.storeTargets(connectionsResp)
+
 	return nil
 }
 
@@ -420,6 +423,9 @@ func (d *Daemon) fetch() error {
 		// Log but don't fail the fetch for sensor errors
 		slog.Warn("failed to store sensor", "error", err)
 	}
+
+	// Store glucose targets
+	d.storeTargets(connectionsResp)
 
 	return nil
 }
@@ -551,6 +557,33 @@ func (d *Daemon) storeSensor(sensor *libreclient.SensorData) error {
 
 	// HandleSensorChange manages sensor change detection atomically
 	return d.sensorService.HandleSensorChange(ctx, sensorConfig)
+}
+
+// storeTargets extracts glucose targets from a ConnectionsResponse and saves them.
+func (d *Daemon) storeTargets(resp *libreclient.ConnectionsResponse) {
+	if len(resp.Data) == 0 {
+		return
+	}
+
+	data := &resp.Data[0]
+	if data.TargetHigh == 0 && data.TargetLow == 0 {
+		return
+	}
+
+	targets := &domain.GlucoseTargets{
+		TargetHigh:    data.TargetHigh,
+		TargetLow:     data.TargetLow,
+		UnitOfMeasure: data.Uom,
+	}
+
+	ctx, cancel := context.WithTimeout(d.ctx, 5*time.Second)
+	defer cancel()
+
+	if err := d.configService.SaveGlucoseTargets(ctx, targets); err != nil {
+		slog.Warn("failed to store glucose targets", "error", err)
+	} else {
+		slog.Debug("glucose targets stored", "targetHigh", data.TargetHigh, "targetLow", data.TargetLow)
+	}
 }
 
 // displayLastMeasurement retrieves and displays the last recorded measurement.

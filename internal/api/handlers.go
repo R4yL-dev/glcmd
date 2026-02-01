@@ -131,6 +131,8 @@ func (s *Server) handleGetStatistics(w http.ResponseWriter, r *http.Request) {
 		data.TimeInRange = &TimeInRangeData{
 			TargetLowMgDl:  targets.TargetLow,
 			TargetHighMgDl: targets.TargetHigh,
+			TargetLow:      float64(targets.TargetLow) / 18.0182,
+			TargetHigh:     float64(targets.TargetHigh) / 18.0182,
 			InRange:        stats.TimeInRange,
 			BelowRange:     stats.TimeBelowRange,
 			AboveRange:     stats.TimeAboveRange,

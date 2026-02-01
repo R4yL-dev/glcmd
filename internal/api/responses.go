@@ -51,6 +51,8 @@ type PeriodInfo struct {
 type TimeInRangeData struct {
 	TargetLowMgDl  int     `json:"targetLowMgDl"`
 	TargetHighMgDl int     `json:"targetHighMgDl"`
+	TargetLow      float64 `json:"targetLow"`
+	TargetHigh     float64 `json:"targetHigh"`
 	InRange        float64 `json:"inRange"`
 	BelowRange     float64 `json:"belowRange"`
 	AboveRange     float64 `json:"aboveRange"`

@@ -30,7 +30,10 @@ type ConnectionsResponse struct {
 			IsHigh           bool    `json:"isHigh"`
 			IsLow            bool    `json:"isLow"`
 		} `json:"glucoseMeasurement"`
-		Sensor SensorData `json:"sensor"`
+		Sensor     SensorData `json:"sensor"`
+		TargetHigh int        `json:"targetHigh"`
+		TargetLow  int        `json:"targetLow"`
+		Uom        int        `json:"uom"`
 	} `json:"data"`
 }
 

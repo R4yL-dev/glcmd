@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 
 	"github.com/R4yL-dev/glcmd/internal/domain"
 	"github.com/R4yL-dev/glcmd/internal/persistence"
@@ -27,7 +28,7 @@ func (r *TargetsRepositoryGORM) Save(ctx context.Context, t *domain.GlucoseTarge
 
 	// For singleton, we always update the first record or create if doesn't exist
 	var existing domain.GlucoseTargets
-	result := db.First(&existing)
+	result := db.Session(&gorm.Session{Logger: logger.Discard}).First(&existing)
 
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
