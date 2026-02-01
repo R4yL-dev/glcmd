@@ -51,34 +51,44 @@ func parsePaginationParams(r *http.Request) (limit, offset int, err error) {
 	return limit, offset, nil
 }
 
+// parseTimeRange parses optional start/end query parameters as RFC3339 timestamps
+// and validates that end is after start when both are provided.
+func parseTimeRange(r *http.Request) (start, end *time.Time, err error) {
+	if startStr := r.URL.Query().Get("start"); startStr != "" {
+		startTime, err := time.Parse(time.RFC3339, startStr)
+		if err != nil {
+			return nil, nil, NewValidationError("invalid start time format (use RFC3339)")
+		}
+		start = &startTime
+	}
+
+	if endStr := r.URL.Query().Get("end"); endStr != "" {
+		endTime, err := time.Parse(time.RFC3339, endStr)
+		if err != nil {
+			return nil, nil, NewValidationError("invalid end time format (use RFC3339)")
+		}
+		end = &endTime
+	}
+
+	if start != nil && end != nil {
+		if end.Before(*start) {
+			return nil, nil, NewValidationError("end time must be after start time")
+		}
+	}
+
+	return start, end, nil
+}
+
 // parseMeasurementFilters parses filter parameters from query string
 func parseMeasurementFilters(r *http.Request) (repository.MeasurementFilters, error) {
 	filters := repository.MeasurementFilters{}
 
-	// Parse start time
-	if startStr := r.URL.Query().Get("start"); startStr != "" {
-		startTime, err := time.Parse(time.RFC3339, startStr)
-		if err != nil {
-			return filters, NewValidationError("invalid start time format (use RFC3339)")
-		}
-		filters.StartTime = &startTime
+	start, end, err := parseTimeRange(r)
+	if err != nil {
+		return filters, err
 	}
-
-	// Parse end time
-	if endStr := r.URL.Query().Get("end"); endStr != "" {
-		endTime, err := time.Parse(time.RFC3339, endStr)
-		if err != nil {
-			return filters, NewValidationError("invalid end time format (use RFC3339)")
-		}
-		filters.EndTime = &endTime
-	}
-
-	// Validate time range
-	if filters.StartTime != nil && filters.EndTime != nil {
-		if filters.EndTime.Before(*filters.StartTime) {
-			return filters, NewValidationError("end time must be after start time")
-		}
-	}
+	filters.StartTime = start
+	filters.EndTime = end
 
 	// Parse color filter
 	if colorStr := r.URL.Query().Get("color"); colorStr != "" {
@@ -111,27 +121,12 @@ func parseMeasurementFilters(r *http.Request) (repository.MeasurementFilters, er
 func parseSensorFilters(r *http.Request) (repository.SensorFilters, error) {
 	filters := repository.SensorFilters{}
 
-	if startStr := r.URL.Query().Get("start"); startStr != "" {
-		startTime, err := time.Parse(time.RFC3339, startStr)
-		if err != nil {
-			return filters, NewValidationError("invalid start time format (use RFC3339)")
-		}
-		filters.StartTime = &startTime
+	start, end, err := parseTimeRange(r)
+	if err != nil {
+		return filters, err
 	}
-
-	if endStr := r.URL.Query().Get("end"); endStr != "" {
-		endTime, err := time.Parse(time.RFC3339, endStr)
-		if err != nil {
-			return filters, NewValidationError("invalid end time format (use RFC3339)")
-		}
-		filters.EndTime = &endTime
-	}
-
-	if filters.StartTime != nil && filters.EndTime != nil {
-		if filters.EndTime.Before(*filters.StartTime) {
-			return filters, NewValidationError("end time must be after start time")
-		}
-	}
+	filters.StartTime = start
+	filters.EndTime = end
 
 	return filters, nil
 }
@@ -143,32 +138,15 @@ func parseStatisticsParams(r *http.Request) (start, end *time.Time, err error) {
 	startStr := r.URL.Query().Get("start")
 	endStr := r.URL.Query().Get("end")
 
-	// Both empty = all time
-	if startStr == "" && endStr == "" {
-		return nil, nil, nil
-	}
-
 	// Both must be provided together
 	if (startStr == "" && endStr != "") || (startStr != "" && endStr == "") {
 		return nil, nil, NewValidationError("both start and end must be provided, or neither")
 	}
 
-	// Parse start time
-	startTime, err := time.Parse(time.RFC3339, startStr)
-	if err != nil {
-		return nil, nil, NewValidationError("invalid start time format (use RFC3339)")
+	// Both empty = all time
+	if startStr == "" && endStr == "" {
+		return nil, nil, nil
 	}
 
-	// Parse end time
-	endTime, err := time.Parse(time.RFC3339, endStr)
-	if err != nil {
-		return nil, nil, NewValidationError("invalid end time format (use RFC3339)")
-	}
-
-	// Validate time range
-	if endTime.Before(startTime) {
-		return nil, nil, NewValidationError("end time must be after start time")
-	}
-
-	return &startTime, &endTime, nil
+	return parseTimeRange(r)
 }

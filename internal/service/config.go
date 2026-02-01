@@ -34,7 +34,6 @@ func NewConfigService(
 // SaveUserPreferences saves user preferences.
 func (s *ConfigServiceImpl) SaveUserPreferences(ctx context.Context, u *domain.UserPreferences) error {
 	if err := s.userRepo.Save(ctx, u); err != nil {
-		s.logger.Error("failed to save user preferences", "error", err)
 		return err
 	}
 
@@ -50,7 +49,6 @@ func (s *ConfigServiceImpl) GetUserPreferences(ctx context.Context) (*domain.Use
 // SaveDeviceInfo saves device information.
 func (s *ConfigServiceImpl) SaveDeviceInfo(ctx context.Context, d *domain.DeviceInfo) error {
 	if err := s.deviceRepo.Save(ctx, d); err != nil {
-		s.logger.Error("failed to save device info", "error", err)
 		return err
 	}
 
@@ -66,7 +64,6 @@ func (s *ConfigServiceImpl) GetDeviceInfo(ctx context.Context) (*domain.DeviceIn
 // SaveGlucoseTargets saves glucose targets.
 func (s *ConfigServiceImpl) SaveGlucoseTargets(ctx context.Context, t *domain.GlucoseTargets) error {
 	if err := s.targetsRepo.Save(ctx, t); err != nil {
-		s.logger.Error("failed to save glucose targets", "error", err)
 		return err
 	}
 

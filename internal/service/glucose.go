@@ -62,11 +62,6 @@ func (s *GlucoseServiceImpl) SaveMeasurement(ctx context.Context, m *domain.Gluc
 	// Log performance metrics
 	duration := time.Since(start)
 	if err != nil {
-		s.logger.Error("failed to save measurement",
-			"error", err,
-			"duration", duration,
-			"timestamp", m.Timestamp,
-		)
 		return err
 	}
 
