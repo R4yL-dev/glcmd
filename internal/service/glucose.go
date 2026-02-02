@@ -27,6 +27,7 @@ type MeasurementStats struct {
 	TimeInRange    float64    `json:"timeInRange"`
 	TimeBelowRange float64    `json:"timeBelowRange"`
 	TimeAboveRange float64    `json:"timeAboveRange"`
+	GMI            *float64   `json:"gmi,omitempty"`
 	FirstTimestamp *time.Time `json:"-"` // Oldest measurement (not in JSON, used for period)
 	LastTimestamp  *time.Time `json:"-"` // Newest measurement (not in JSON, used for period)
 }
@@ -141,6 +142,8 @@ func (s *GlucoseServiceImpl) GetStatistics(ctx context.Context, start, end *time
 		FirstTimestamp: result.FirstTimestamp,
 		LastTimestamp:  result.LastTimestamp,
 	}
+
+	stats.GMI = domain.CalculateGMI(stats.AverageMgDl)
 
 	// Calculate Time in Range percentages if targets were provided
 	if result.Count > 0 && targets != nil {

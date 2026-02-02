@@ -258,6 +258,9 @@ func FormatStatistics(stats *StatisticsData) string {
 		stats.Statistics.Min, stats.Statistics.Max,
 		stats.Statistics.MinMgDl, stats.Statistics.MaxMgDl))
 	sb.WriteString(fmt.Sprintf("   Std Dev:      %.1f mmol/L\n", stats.Statistics.StdDev))
+	if stats.Statistics.GMI != nil {
+		sb.WriteString(fmt.Sprintf("   GMI:          %.1f%%\n", *stats.Statistics.GMI))
+	}
 	sb.WriteString("\n")
 
 	// Distribution section - calculate percentages from counts
@@ -375,6 +378,42 @@ func FormatSensorTable(sensors []SensorInfo, total int) string {
 	} else {
 		sb.WriteString(fmt.Sprintf("Showing %d sensors", len(sensors)))
 	}
+
+	return sb.String()
+}
+
+// GMIPeriodResult holds GMI data for a single period
+type GMIPeriodResult struct {
+	Label        string   `json:"label"`
+	GMI          *float64 `json:"gmi,omitempty"`
+	AverageMmol  float64  `json:"averageMmol"`
+	AverageMgDl  float64  `json:"averageMgDl"`
+	Measurements int      `json:"measurements"`
+}
+
+// FormatGMI formats multi-period GMI data as a table
+func FormatGMI(results []GMIPeriodResult) string {
+	var sb strings.Builder
+
+	sb.WriteString("📊 Glucose Management Indicator (GMI)\n")
+	sb.WriteString("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n")
+
+	// Table header
+	sb.WriteString("┌──────────┬────────┬───────────────────┬──────────────┐\n")
+	sb.WriteString("│ Period   │ GMI    │ Avg Glucose       │ Measurements │\n")
+	sb.WriteString("├──────────┼────────┼───────────────────┼──────────────┤\n")
+
+	for _, r := range results {
+		gmiStr := "  -   "
+		if r.GMI != nil {
+			gmiStr = fmt.Sprintf("%.1f%% ", *r.GMI)
+		}
+		avgStr := fmt.Sprintf("%.1f mmol/L (%.0f)", r.AverageMmol, r.AverageMgDl)
+		sb.WriteString(fmt.Sprintf("│ %-8s │ %-6s │ %-17s │ %-12d │\n",
+			r.Label, gmiStr, avgStr, r.Measurements))
+	}
+
+	sb.WriteString("└──────────┴────────┴───────────────────┴──────────────┘")
 
 	return sb.String()
 }

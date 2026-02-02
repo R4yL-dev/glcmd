@@ -49,7 +49,8 @@ type StatsDetails struct {
 	HighCount      int     `json:"highCount"`
 	TimeInRange    float64 `json:"timeInRange"`
 	TimeBelowRange float64 `json:"timeBelowRange"`
-	TimeAboveRange float64 `json:"timeAboveRange"`
+	TimeAboveRange float64  `json:"timeAboveRange"`
+	GMI            *float64 `json:"gmi,omitempty"`
 }
 
 // StatsDistribution contains distribution statistics
