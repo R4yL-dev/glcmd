@@ -1,7 +1,7 @@
 # Architecture Documentation
 
-**Version**: 0.4.0
-**Updated**: 2026-01-31
+**Version**: 0.5.0
+**Updated**: 2026-02-07
 **For**: glcmd glucose monitoring toolkit
 
 ## Overview
@@ -150,7 +150,6 @@ Orchestrates API polling and data persistence.
 - Authenticates with LibreView (handles token expiration)
 - Transforms API responses to domain models
 - Delegates persistence to services
-- Periodic display of latest glucose reading
 
 **Context Management**:
 - All service calls include context.WithTimeout (5 seconds)
@@ -193,11 +192,32 @@ Command-line client for querying the glcore API.
 - `glcli` / `glcli glucose` — Current glucose reading
 - `glcli history` / `glcli glucose history` — Historical measurements
 - `glcli stats` / `glcli glucose stats` — Glucose statistics
+- `glcli gmi` / `glcli glucose gmi` — Glucose Management Indicator (estimated A1C)
 - `glcli sensor` — Current sensor info
 - `glcli sensor history` — Past sensors
 - `glcli sensor stats` — Sensor lifecycle statistics
+- `glcli version` — Version information
+- `glcli completion` — Shell completion scripts
 
-## Recent Changes (v0.4.0)
+## Recent Changes (v0.5.0)
+
+### Daemon Simplification
+- Removed periodic display of glucose readings (display ticker)
+- Removed emoji configuration support
+- All glucose data accessed via REST API or CLI client
+
+### Logging Improvements
+- Console logger with configurable format (`text` or `json`) via `GLCMD_LOG_FORMAT`
+- Configurable log level (`debug`, `info`, `warn`, `error`) via `GLCMD_LOG_LEVEL`
+- Logs output to stderr for container compatibility
+- Debug logging for LibreView API client operations
+- Harmonized API request logging across components
+
+### Performance Optimizations
+- Glucose targets cached to avoid redundant database saves
+- `SaveMeasurement` returns `inserted` flag for tracking new vs. duplicate measurements
+
+## Changes in v0.4.0
 
 ### CLI Client
 - New `glcli` binary built with Cobra for querying the glcore API
@@ -383,28 +403,13 @@ Tests focus on critical paths and business logic correctness.
 
 **Philosophy**: Few useful tests over many trivial tests. Focus on critical business logic and data integrity.
 
-## Migration Path
+## Database
 
-### Current: SQLite
+### SQLite
 - Single-file database: `./data/glcmd.db`
+- WAL mode for concurrent reads during writes
 - Auto-migrations via GORM
 - Suitable for single-instance deployments
-
-### Future: PostgreSQL
-The architecture is designed for easy migration:
-
-1. **Configuration Change**: Set environment variables for PostgreSQL connection
-2. **No Code Changes**: GORM abstracts database differences
-3. **Migration Strategy**:
-   - Export SQLite data
-   - Import to PostgreSQL
-   - Update configuration
-   - Restart application
-
-**Container Strategy**:
-- App container: glcmd binary with PostgreSQL configuration
-- DB container: PostgreSQL instance
-- Docker Compose for orchestration
 
 ## Performance Considerations
 
@@ -424,9 +429,11 @@ The architecture is designed for easy migration:
 - Context-aware cancellation
 
 ### Logging
-- Structured logging with slog
+- Structured logging with slog to stderr
+- Configurable output format (text or JSON) via `GLCMD_LOG_FORMAT`
+- Configurable log level via `GLCMD_LOG_LEVEL`
 - Duration tracking for all service operations
-- GORM query logging at WARN level (production)
+- Debug-level logging for API requests
 
 ## Error Handling
 
@@ -449,8 +456,6 @@ All errors wrapped with context using `fmt.Errorf()` and `%w` verb for error cha
 ### Under Consideration
 - SQL migration tool (e.g., golang-migrate) for versioned schema changes
 - Prometheus metrics export for monitoring integration
-- Read replicas support for PostgreSQL
-- Connection pool tuning for high-traffic PostgreSQL deployments
 - Query result caching for frequently accessed data
 - Batch insert optimization for historical data imports
 

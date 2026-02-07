@@ -1,7 +1,7 @@
 # HTTP API Documentation
 
-**Version**: 0.4.0
-**Updated**: 2026-01-31
+**Version**: 0.5.0
+**Updated**: 2026-02-07
 **Status**: Stable
 
 `glcore` provides a unified HTTP API server on port 8080 (configurable via `GLCMD_API_PORT`). All endpoints return JSON responses with consistent formatting and pass through logging, recovery, and timeout middlewares.

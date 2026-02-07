@@ -1,7 +1,7 @@
 # glcmd Documentation
 
-**Version**: 0.4.0
-**Updated**: 2026-01-31
+**Version**: 0.5.0
+**Updated**: 2026-02-07
 
 ## Overview
 
@@ -34,7 +34,6 @@ Complete architectural overview covering:
 - Database schema and migrations
 - Testing strategy and coverage
 - Performance considerations
-- Future migration path to PostgreSQL
 
 **Read this if you want to**:
 - Understand the codebase structure
@@ -45,10 +44,9 @@ Complete architectural overview covering:
 ### [ENV_VARS.md](ENV_VARS.md)
 
 Environment variable configuration reference:
-- Database configuration (SQLite and PostgreSQL)
-- Connection pooling settings
-- Retry configuration
+- Database configuration (SQLite)
 - Application settings
+- Logging configuration
 - Configuration examples for different environments
 - Security best practices
 - Troubleshooting guide
@@ -56,7 +54,6 @@ Environment variable configuration reference:
 **Read this if you want to**:
 - Configure glcmd for your environment
 - Deploy glcmd in production
-- Migrate from SQLite to PostgreSQL
 - Troubleshoot connection or performance issues
 - Set up containerized deployment
 
@@ -80,10 +77,8 @@ Environment variable configuration reference:
    ```bash
    export GLCMD_EMAIL=your-email@example.com
    export GLCMD_PASSWORD=your-password
-   export GLCMD_DB_TYPE=sqlite
    export GLCMD_DB_PATH=./data/glcmd.db
-   export GLCMD_DB_LOG_LEVEL=info
-   export GLCMD_API_PORT=8080
+   export GLCMD_LOG_LEVEL=info
    ```
 
 4. **Run daemon**:
@@ -116,7 +111,6 @@ make test-race
 See [ENV_VARS.md](ENV_VARS.md) for production configuration examples including:
 - Systemd service configuration
 - Docker Compose setup
-- PostgreSQL migration guide
 - Security best practices
 
 ## Architecture at a Glance
@@ -145,7 +139,8 @@ internal/cli (HTTP client + formatters)
 - Two binaries: `glcore` (daemon) and `glcli` (CLI client)
 - Unified HTTP API server on port 8080 with 8 endpoints
 - CLI with Cobra subcommands, shell completion, and JSON output
-- SQLite with WAL mode (current), PostgreSQL ready (future)
+- SQLite with WAL mode for concurrent reads
+- Structured logging with configurable format and level
 - ACID transactions via Unit of Work
 - Automatic retry with exponential backoff
 - Context-based timeout enforcement
@@ -167,18 +162,11 @@ Exponential backoff for transient database errors (locks, timeouts). Configurabl
 
 ## Database
 
-### Current: SQLite
+### SQLite
 - Single-file database at `./data/glcmd.db`
 - WAL mode for better concurrency
 - Auto-migrations via GORM
 - Suitable for single-instance deployments
-
-### Future: PostgreSQL
-Architecture supports easy migration:
-- Update environment variables
-- No code changes required
-- GORM abstracts database differences
-- Containerization ready
 
 ## Contributing
 
@@ -227,7 +215,6 @@ When contributing to glcmd:
 **Connection errors**:
 - Verify database path directory exists
 - Check file permissions
-- For PostgreSQL: verify credentials and network connectivity
 
 ## Additional Resources
 

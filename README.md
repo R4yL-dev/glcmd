@@ -2,8 +2,8 @@
 
 ## Overview
 
-**Version**: 0.4.0
-**Date**: 2026-01-31
+**Version**: 0.5.0
+**Date**: 2026-02-07
 
 glcmd is a glucose monitoring toolkit for retrieving and monitoring blood glucose data from the LibreView API using LibreLinkUp follower account credentials. It consists of two binaries:
 
@@ -15,13 +15,13 @@ glcmd is a glucose monitoring toolkit for retrieving and monitoring blood glucos
 - Continuous glucose monitoring via LibreView API follower account
 - Daemon mode with automatic polling (default: 5 minutes)
 - CLI client with Cobra-based subcommands, shell completion, and JSON output
-- Local database persistence (SQLite default, PostgreSQL supported)
+- Local SQLite database persistence
 - Automatic sensor change detection with unresponsive sensor detection
 - HTTP REST API with 8 endpoints (health, metrics, measurements, statistics, sensors, sensor history, sensor stats)
 - Sensor lifecycle tracking with expiration, duration, and status fields
 - All-time statistics support with SQL-based calculations
 - Robust architecture with retry logic, transactions, and graceful shutdown
-- Structured logging with configurable output
+- Structured logging with configurable format (text/JSON) and level
 - Open-source under MIT license
 
 ## Prerequisites
@@ -49,14 +49,15 @@ export GLCMD_PASSWORD='your_password'
 
 ### Optional Configuration
 
-Common daemon settings:
+Daemon settings:
 - `GLCMD_FETCH_INTERVAL`: Polling interval (default: `5m`)
-- `GLCMD_DISPLAY_INTERVAL`: Display interval (default: `1m`)
-- `GLCMD_ENABLE_EMOJIS`: Enable emoji display (default: `true`)
 - `GLCMD_API_PORT`: HTTP API port (default: `8080`)
 
+Logging settings:
+- `GLCMD_LOG_FORMAT`: Log output format (`text` or `json`, default: `text`)
+- `GLCMD_LOG_LEVEL`: Log verbosity (`debug`, `info`, `warn`, `error`, default: `info`)
+
 Database settings:
-- `GLCMD_DB_TYPE`: Database type (`sqlite` or `postgres`, default: `sqlite`)
 - `GLCMD_DB_PATH`: SQLite database path (default: `./data/glcmd.db`)
 - `GLCMD_DB_LOG_LEVEL`: GORM log level (default: `warn`)
 
@@ -123,13 +124,13 @@ glcore runs the monitoring daemon. Start it with:
 ```
 
 The daemon:
-- Polls LibreView API every 5 minutes (configurable)
-- Displays latest glucose reading every minute (configurable)
+- Polls LibreView API every 5 minutes (configurable via `GLCMD_FETCH_INTERVAL`)
 - Stores measurements in SQLite database
 - Detects sensor changes automatically and tracks unresponsive sensors
 - Imports historical data on first run
 - Persists data across restarts
 - Exposes HTTP API on port 8080
+- Logs to stderr with configurable format and level
 
 ### CLI Client (glcli)
 
@@ -153,6 +154,9 @@ glcli queries data from a running glcore instance:
 # Sensor history and stats
 ./bin/glcli sensor history
 ./bin/glcli sensor stats
+
+# GMI (Glucose Management Indicator)
+./bin/glcli gmi
 
 # JSON output for scripting
 ./bin/glcli --json

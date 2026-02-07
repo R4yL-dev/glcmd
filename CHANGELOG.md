@@ -5,6 +5,25 @@ All notable changes to glcmd are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.5.0] - 2026-02-07
+
+### Added
+- **Configurable Logging**: New environment variables for log configuration
+  - `GLCMD_LOG_FORMAT`: Output format (`text` or `json`, default: `text`)
+  - `GLCMD_LOG_LEVEL`: Log level (`debug`, `info`, `warn`, `error`, default: `info`)
+- **Debug Logging**: Verbose logging for LibreView API client operations
+- **Performance**: Glucose targets are now cached to avoid redundant database saves
+
+### Changed
+- Daemon logs now output to stderr instead of files
+- Harmonized API request logging across components
+- `SaveMeasurement` returns an `inserted` flag for tracking new vs. duplicate measurements
+
+### Removed
+- **BREAKING**: `GLCMD_DISPLAY_INTERVAL` environment variable removed
+- **BREAKING**: `GLCMD_ENABLE_EMOJIS` environment variable removed
+- Periodic display of glucose readings in daemon (use CLI or API instead)
+
 ## [0.4.0] - 2026-01-31
 
 ### Added

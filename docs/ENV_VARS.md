@@ -1,7 +1,7 @@
 # Environment Variables
 
-**Version**: 0.4.0
-**Updated**: 2026-01-31
+**Version**: 0.5.0
+**Updated**: 2026-02-07
 
 ## Overview
 
@@ -46,46 +46,6 @@ GLCMD_FETCH_INTERVAL=2m
 
 # Less frequent: 10 minutes
 GLCMD_FETCH_INTERVAL=10m
-```
-
----
-
-### GLCMD_DISPLAY_INTERVAL
-- **Description**: How often to display the latest glucose measurement in logs
-- **Format**: Go duration format (e.g., `1m`, `30s`, `2m`)
-- **Default**: `1m` (1 minute)
-- **Example**: `GLCMD_DISPLAY_INTERVAL=30s`
-
-**Usage**:
-```bash
-# Default: 1 minute
-GLCMD_DISPLAY_INTERVAL=1m
-
-# More frequent: 30 seconds
-GLCMD_DISPLAY_INTERVAL=30s
-
-# Less frequent: 5 minutes
-GLCMD_DISPLAY_INTERVAL=5m
-```
-
----
-
-### GLCMD_ENABLE_EMOJIS
-- **Description**: Enable emoji display in trend arrows and status indicators
-- **Values**: `true` | `false`
-- **Default**: `true`
-- **Example**: `GLCMD_ENABLE_EMOJIS=false`
-- **Note**: Set to `false` for legacy terminals or log parsing systems
-
-**Usage**:
-```bash
-# Enable emojis (default)
-GLCMD_ENABLE_EMOJIS=true
-# Output: ⬆️⬆️ 🟢 Normal
-
-# Disable emojis (ASCII only)
-GLCMD_ENABLE_EMOJIS=false
-# Output: Rising rapidly Normal
 ```
 
 ---
@@ -141,24 +101,56 @@ glcli --api-url http://remote-server:8080 stats
 
 ---
 
-## Database Configuration
+## Logging Configuration
 
-### GLCMD_DB_TYPE
-- **Description**: Database type to use
-- **Values**: `sqlite` | `postgres`
-- **Default**: `sqlite`
-- **Example**: `GLCMD_DB_TYPE=sqlite`
+### GLCMD_LOG_FORMAT
+- **Description**: Output format for console logging
+- **Values**: `text` | `json`
+- **Default**: `text`
+- **Example**: `GLCMD_LOG_FORMAT=json`
+- **Note**: JSON format is useful for log aggregation systems (ELK, Loki, etc.)
 
 **Usage**:
 ```bash
-# SQLite (default)
-GLCMD_DB_TYPE=sqlite
+# Human-readable text output (default)
+GLCMD_LOG_FORMAT=text
+# Output: time=2026-02-07T10:30:00Z level=INFO msg="authenticated" duration=1.2s
 
-# PostgreSQL (future containerized deployment)
-GLCMD_DB_TYPE=postgres
+# JSON output for log aggregation
+GLCMD_LOG_FORMAT=json
+# Output: {"time":"2026-02-07T10:30:00Z","level":"INFO","msg":"authenticated","duration":"1.2s"}
 ```
 
 ---
+
+### GLCMD_LOG_LEVEL
+- **Description**: Minimum log level to output
+- **Values**: `debug` | `info` | `warn` | `error`
+- **Default**: `info`
+- **Example**: `GLCMD_LOG_LEVEL=debug`
+- **Note**: Logs are output to stderr
+
+**Log Levels**:
+- `debug`: Verbose output including API requests and internal operations
+- `info`: Standard operational messages (startup, fetch cycles, measurements)
+- `warn`: Warning conditions that may require attention
+- `error`: Error conditions only
+
+**Usage**:
+```bash
+# Production (recommended)
+GLCMD_LOG_LEVEL=info
+
+# Development/debugging
+GLCMD_LOG_LEVEL=debug
+
+# Minimal output
+GLCMD_LOG_LEVEL=warn
+```
+
+---
+
+## Database Configuration
 
 ### GLCMD_DB_PATH
 - **Description**: Path to SQLite database file
@@ -182,94 +174,19 @@ mkdir -p ./data  # Create directory if it doesn't exist
 
 ---
 
-### GLCMD_DB_HOST
-- **Description**: PostgreSQL server hostname or IP address
-- **Default**: `localhost`
-- **Example**: `GLCMD_DB_HOST=postgres.example.com`
-- **Applies to**: `GLCMD_DB_TYPE=postgres` only
-
----
-
-### GLCMD_DB_PORT
-- **Description**: PostgreSQL server port
-- **Default**: `5432`
-- **Example**: `GLCMD_DB_PORT=5432`
-- **Applies to**: `GLCMD_DB_TYPE=postgres` only
-
----
-
-### GLCMD_DB_USER
-- **Description**: PostgreSQL username
-- **Default**: `postgres`
-- **Example**: `GLCMD_DB_USER=glcmd_user`
-- **Applies to**: `GLCMD_DB_TYPE=postgres` only
-
----
-
-### GLCMD_DB_PASSWORD
-- **Description**: PostgreSQL password
-- **Default**: `postgres`
-- **Example**: `GLCMD_DB_PASSWORD=secure_password_here`
-- **Applies to**: `GLCMD_DB_TYPE=postgres` only
-- **Security**: Use strong passwords in production. Consider secrets management.
-
----
-
-### GLCMD_DB_DBNAME
-- **Description**: PostgreSQL database name
-- **Default**: `glcmd`
-- **Example**: `GLCMD_DB_DBNAME=glucose_monitoring`
-- **Applies to**: `GLCMD_DB_TYPE=postgres` only
-- **Note**: Database must be created before starting the application
-
----
-
-### GLCMD_DB_SSLMODE
-- **Description**: PostgreSQL SSL mode
-- **Values**: `disable` | `require` | `verify-ca` | `verify-full`
-- **Default**: `disable`
-- **Example**: `GLCMD_DB_SSLMODE=require`
-- **Applies to**: `GLCMD_DB_TYPE=postgres` only
-- **Production**: Use `require` or higher for production deployments
-
----
-
 ### GLCMD_DB_MAX_OPEN_CONNS
 - **Description**: Maximum number of open database connections
-- **Default**: `1` (SQLite), `25` (PostgreSQL)
-- **Example**: `GLCMD_DB_MAX_OPEN_CONNS=10`
+- **Default**: `1`
+- **Example**: `GLCMD_DB_MAX_OPEN_CONNS=1`
 - **Note**: SQLite should always use 1 (single writer limitation)
-
-**Usage**:
-```bash
-# SQLite (always use 1)
-GLCMD_DB_MAX_OPEN_CONNS=1
-
-# PostgreSQL (tune based on load)
-GLCMD_DB_MAX_OPEN_CONNS=25
-```
 
 ---
 
 ### GLCMD_DB_MAX_IDLE_CONNS
 - **Description**: Maximum number of idle connections in the pool
-- **Default**: `1` (SQLite), `5` (PostgreSQL)
-- **Example**: `GLCMD_DB_MAX_IDLE_CONNS=5`
+- **Default**: `1`
+- **Example**: `GLCMD_DB_MAX_IDLE_CONNS=1`
 - **Recommendation**: Set to same as MAX_OPEN_CONNS for consistent pool size
-
----
-
-### DB_CONN_MAX_LIFETIME
-- **Description**: Maximum lifetime of a connection (duration string)
-- **Default**: `1h`
-- **Example**: `DB_CONN_MAX_LIFETIME=30m`
-- **Format**: Valid Go duration string (`10s`, `5m`, `1h`, `24h`)
-
-**Valid Duration Formats**:
-- `10s` - 10 seconds
-- `5m` - 5 minutes
-- `1h` - 1 hour
-- `24h` - 24 hours
 
 ---
 
@@ -296,115 +213,46 @@ GLCMD_DB_LOG_LEVEL=info
 
 ---
 
-## Retry Configuration
-
-### DB_RETRY_MAX_RETRIES
-- **Description**: Maximum number of retry attempts for database operations
-- **Default**: `3`
-- **Example**: `DB_RETRY_MAX_RETRIES=5`
-- **Range**: `0` (no retries) to `10` (aggressive retrying)
-
----
-
-### DB_RETRY_INITIAL_BACKOFF
-- **Description**: Initial backoff duration before first retry
-- **Default**: `100ms`
-- **Example**: `DB_RETRY_INITIAL_BACKOFF=50ms`
-- **Format**: Valid Go duration string
-
----
-
-### DB_RETRY_MAX_BACKOFF
-- **Description**: Maximum backoff duration (cap for exponential backoff)
-- **Default**: `500ms`
-- **Example**: `DB_RETRY_MAX_BACKOFF=1s`
-- **Format**: Valid Go duration string
-
----
-
-### DB_RETRY_MULTIPLIER
-- **Description**: Backoff multiplier for exponential backoff
-- **Default**: `2.0`
-- **Example**: `DB_RETRY_MULTIPLIER=1.5`
-- **Range**: `1.0` (linear) to `3.0` (aggressive exponential)
-
-**Backoff Progression Example** (default config):
-- 1st retry: 100ms
-- 2nd retry: 200ms (100ms × 2.0)
-- 3rd retry: 400ms (200ms × 2.0)
-
----
-
 ## Configuration Examples
 
-### Development (SQLite)
+### Development
 
 ```bash
+# Authentication
+GLCMD_EMAIL=dev@example.com
+GLCMD_PASSWORD=dev_password
+
 # Database
-GLCMD_DB_TYPE=sqlite
 GLCMD_DB_PATH=./data/glcmd.db
 GLCMD_DB_LOG_LEVEL=info
 
-# Retry (more aggressive for debugging)
-DB_RETRY_MAX_RETRIES=5
-DB_RETRY_INITIAL_BACKOFF=50ms
+# Logging
+GLCMD_LOG_LEVEL=debug
+GLCMD_LOG_FORMAT=text
 
 # Application
-GLCMD_EMAIL=dev@example.com
-GLCMD_PASSWORD=dev_password
 GLCMD_FETCH_INTERVAL=5m
 GLCMD_API_PORT=8080
 ```
 
-### Production (SQLite)
+### Production
 
 ```bash
+# Authentication
+GLCMD_EMAIL=user@example.com
+GLCMD_PASSWORD=secure_password
+
 # Database
-GLCMD_DB_TYPE=sqlite
 GLCMD_DB_PATH=/var/lib/glcmd/glcmd.db
 GLCMD_DB_LOG_LEVEL=warn
 GLCMD_DB_MAX_OPEN_CONNS=1
 GLCMD_DB_MAX_IDLE_CONNS=1
 
-# Retry (standard)
-DB_RETRY_MAX_RETRIES=3
-DB_RETRY_INITIAL_BACKOFF=100ms
-DB_RETRY_MAX_BACKOFF=500ms
+# Logging
+GLCMD_LOG_LEVEL=info
+GLCMD_LOG_FORMAT=text
 
 # Application
-GLCMD_EMAIL=user@example.com
-GLCMD_PASSWORD=secure_password
-GLCMD_FETCH_INTERVAL=5m
-GLCMD_API_PORT=8080
-```
-
-### Production (PostgreSQL - Future)
-
-```bash
-# Database
-GLCMD_DB_TYPE=postgres
-GLCMD_DB_HOST=postgres-service
-GLCMD_DB_PORT=5432
-GLCMD_DB_USER=glcmd_app
-GLCMD_DB_PASSWORD=strong_password_here
-GLCMD_DB_DBNAME=glcmd_production
-GLCMD_DB_SSLMODE=require
-GLCMD_DB_LOG_LEVEL=warn
-
-# Connection pooling
-GLCMD_DB_MAX_OPEN_CONNS=25
-GLCMD_DB_MAX_IDLE_CONNS=5
-DB_CONN_MAX_LIFETIME=1h
-
-# Retry
-DB_RETRY_MAX_RETRIES=3
-DB_RETRY_INITIAL_BACKOFF=100ms
-DB_RETRY_MAX_BACKOFF=500ms
-DB_RETRY_MULTIPLIER=2.0
-
-# Application
-GLCMD_EMAIL=user@example.com
-GLCMD_PASSWORD=secure_password
 GLCMD_FETCH_INTERVAL=5m
 GLCMD_API_PORT=8080
 ```
@@ -415,48 +263,32 @@ GLCMD_API_PORT=8080
 version: '3.8'
 
 services:
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_USER: glcmd_app
-      POSTGRES_PASSWORD: secure_password
-      POSTGRES_DB: glcmd_production
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-
-  glcmd:
+  glcore:
     build: .
-    depends_on:
-      - postgres
     environment:
-      # Database
-      GLCMD_DB_TYPE: postgres
-      GLCMD_DB_HOST: postgres
-      GLCMD_DB_PORT: 5432
-      GLCMD_DB_USER: glcmd_app
-      GLCMD_DB_PASSWORD: secure_password
-      GLCMD_DB_DBNAME: glcmd_production
-      GLCMD_DB_SSLMODE: disable  # Internal network
-      GLCMD_DB_LOG_LEVEL: warn
-
-      # Connection pooling
-      GLCMD_DB_MAX_OPEN_CONNS: 25
-      GLCMD_DB_MAX_IDLE_CONNS: 5
-      DB_CONN_MAX_LIFETIME: 1h
-
-      # Application
+      # Authentication
       GLCMD_EMAIL: ${LIBREVIEW_EMAIL}
       GLCMD_PASSWORD: ${LIBREVIEW_PASSWORD}
+
+      # Database
+      GLCMD_DB_PATH: /data/glcmd.db
+      GLCMD_DB_LOG_LEVEL: warn
+
+      # Logging
+      GLCMD_LOG_LEVEL: info
+      GLCMD_LOG_FORMAT: json
+
+      # Application
       GLCMD_FETCH_INTERVAL: 5m
       GLCMD_API_PORT: 8080
+    volumes:
+      - glcmd_data:/data
     ports:
       - "8080:8080"
     restart: unless-stopped
 
 volumes:
-  postgres_data:
+  glcmd_data:
 ```
 
 ## Environment Variable Loading
@@ -480,11 +312,12 @@ godotenv -f .env ./bin/glcore
 
 **Example .env file**:
 ```env
-GLCMD_DB_TYPE=sqlite
-GLCMD_DB_PATH=./data/glcmd.db
-GLCMD_DB_LOG_LEVEL=info
 GLCMD_EMAIL=user@example.com
 GLCMD_PASSWORD=password
+GLCMD_DB_PATH=./data/glcmd.db
+GLCMD_DB_LOG_LEVEL=info
+GLCMD_LOG_LEVEL=info
+GLCMD_LOG_FORMAT=text
 GLCMD_FETCH_INTERVAL=5m
 GLCMD_API_PORT=8080
 ```
@@ -503,11 +336,12 @@ Group=glcmd
 WorkingDirectory=/opt/glcmd
 
 # Environment variables
-Environment="GLCMD_DB_TYPE=sqlite"
-Environment="GLCMD_DB_PATH=/var/lib/glcmd/glcmd.db"
-Environment="GLCMD_DB_LOG_LEVEL=warn"
 Environment="GLCMD_EMAIL=user@example.com"
 Environment="GLCMD_PASSWORD=password"
+Environment="GLCMD_DB_PATH=/var/lib/glcmd/glcmd.db"
+Environment="GLCMD_DB_LOG_LEVEL=warn"
+Environment="GLCMD_LOG_LEVEL=info"
+Environment="GLCMD_LOG_FORMAT=text"
 Environment="GLCMD_FETCH_INTERVAL=5m"
 Environment="GLCMD_API_PORT=8080"
 
@@ -523,9 +357,7 @@ WantedBy=multi-user.target
 
 ### Sensitive Variables
 
-These variables contain sensitive information:
-- `GLCMD_PASSWORD`
-- `GLCMD_DB_PASSWORD`
+The `GLCMD_PASSWORD` variable contains sensitive information.
 
 **Recommendations**:
 1. **Never commit** to version control
@@ -539,24 +371,19 @@ These variables contain sensitive information:
 version: '3.8'
 
 services:
-  glcmd:
+  glcore:
     image: glcmd:latest
     environment:
-      GLCMD_DB_TYPE: postgres
-      GLCMD_DB_HOST: postgres
-      GLCMD_DB_USER: glcmd_app
-      GLCMD_DB_DBNAME: glcmd_production
-      # Passwords from secrets
+      GLCMD_EMAIL: user@example.com
+      GLCMD_DB_PATH: /data/glcmd.db
+      GLCMD_LOG_LEVEL: info
+      # Password from secret
       GLCMD_PASSWORD_FILE: /run/secrets/libreview_password
-      GLCMD_DB_PASSWORD_FILE: /run/secrets/db_password
     secrets:
       - libreview_password
-      - db_password
 
 secrets:
   libreview_password:
-    external: true
-  db_password:
     external: true
 ```
 
@@ -565,14 +392,13 @@ secrets:
 The application validates configuration on startup and will exit with an error if:
 - Database connection fails
 - Invalid duration formats
-- Invalid enum values (GLCMD_DB_TYPE, GLCMD_DB_LOG_LEVEL, etc.)
+- Invalid enum values (GLCMD_DB_LOG_LEVEL, GLCMD_LOG_LEVEL, etc.)
 - Missing required credentials (email/password)
 
 **Example Error Messages**:
 ```
-Error: invalid GLCMD_DB_TYPE value: 'mysql' (must be 'sqlite' or 'postgres')
 Error: failed to connect to database: unable to open database file
-Error: invalid duration format for DB_CONN_MAX_LIFETIME: 'invalid'
+Error: invalid GLCMD_LOG_LEVEL value: 'verbose' (must be 'debug', 'info', 'warn', or 'error')
 ```
 
 ## Troubleshooting
@@ -584,8 +410,7 @@ Error: invalid duration format for DB_CONN_MAX_LIFETIME: 'invalid'
 **Solutions**:
 1. Check `GLCMD_DB_PATH` directory exists
 2. Verify file permissions on database file
-3. For PostgreSQL: verify host, port, credentials
-4. Check database logs for connection errors
+3. Check database logs for connection errors
 
 ### Lock/Busy Errors
 
@@ -593,9 +418,8 @@ Error: invalid duration format for DB_CONN_MAX_LIFETIME: 'invalid'
 
 **Solutions**:
 1. Ensure `GLCMD_DB_MAX_OPEN_CONNS=1` for SQLite
-2. Increase `DB_RETRY_MAX_RETRIES`
-3. Increase `DB_RETRY_MAX_BACKOFF`
-4. Check for long-running queries blocking writes
+2. Check for long-running queries blocking writes
+3. Ensure only one glcore instance is running
 
 ### Performance Issues
 
@@ -603,63 +427,29 @@ Error: invalid duration format for DB_CONN_MAX_LIFETIME: 'invalid'
 
 **Solutions**:
 1. Set `GLCMD_DB_LOG_LEVEL=info` to see slow queries
-2. For PostgreSQL: tune connection pool (`GLCMD_DB_MAX_OPEN_CONNS`)
-3. Check WAL mode enabled (SQLite)
-4. Monitor retry frequency in logs
+2. Check WAL mode enabled (SQLite)
 
-## Migration from SQLite to PostgreSQL
+## Upgrading from v0.4.x to v0.5.0
 
-### Step 1: Export SQLite Data
+### Removed Environment Variables
 
-```bash
-# Dump schema and data
-sqlite3 ./data/glcmd.db .dump > backup.sql
+The following environment variables have been removed:
 
-# Or use a tool like pgloader
-pgloader ./data/glcmd.db postgresql://user:pass@host/dbname
-```
+- `GLCMD_DISPLAY_INTERVAL` - Periodic display feature removed
+- `GLCMD_ENABLE_EMOJIS` - Emoji display feature removed
 
-### Step 2: Update Environment Variables
+If these variables are set, they will be ignored.
 
-```bash
-# Change from SQLite
-GLCMD_DB_TYPE=sqlite
-GLCMD_DB_PATH=./data/glcmd.db
+### New Environment Variables
 
-# To PostgreSQL
-GLCMD_DB_TYPE=postgres
-GLCMD_DB_HOST=localhost
-GLCMD_DB_PORT=5432
-GLCMD_DB_USER=glcmd_app
-GLCMD_DB_PASSWORD=password
-GLCMD_DB_DBNAME=glcmd_production
-GLCMD_DB_SSLMODE=require
-```
+- `GLCMD_LOG_FORMAT`: Log output format (`text` or `json`)
+- `GLCMD_LOG_LEVEL`: Log verbosity (`debug`, `info`, `warn`, `error`)
 
-### Step 3: Restart Application
+### Behavioral Changes
 
-```bash
-# Application will auto-migrate schema on PostgreSQL
-./bin/glcore
-```
-
-## Upgrading from v0.1.x to v0.2.0
-
-### Environment Variable Changes
-
-The following environment variables have been renamed for clarity and consistency:
-
-- `GLCMD_HEALTHCHECK_PORT` → `GLCMD_API_PORT` (same functionality, renamed for clarity)
-- `GLCMD_INTERVAL` → `GLCMD_FETCH_INTERVAL` (if using legacy variable)
-
-All other variables remain compatible. Update your configuration files and deployment scripts accordingly.
-
-### API Changes
-
-- All API endpoints now unified on single port (default: 8080)
-- No breaking changes to endpoint specifications
-- See [API Documentation](API.md) for complete current specification
-- See [CHANGELOG](../CHANGELOG.md) for detailed list of all changes
+- The daemon no longer displays periodic glucose readings to the console
+- All glucose data is accessed via the REST API or CLI client (`glcli`)
+- Logs are output to stderr instead of files
 
 ---
 
@@ -667,24 +457,14 @@ All other variables remain compatible. Update your configuration files and deplo
 
 | Variable | Default | Type |
 |----------|---------|------|
-| GLCMD_DB_TYPE | `sqlite` | string |
-| GLCMD_DB_PATH | `./data/glcmd.db` | string |
-| GLCMD_DB_HOST | `localhost` | string |
-| GLCMD_DB_PORT | `5432` | int |
-| GLCMD_DB_USER | `postgres` | string |
-| GLCMD_DB_PASSWORD | `postgres` | string |
-| GLCMD_DB_DBNAME | `glcmd` | string |
-| GLCMD_DB_SSLMODE | `disable` | string |
-| GLCMD_DB_MAX_OPEN_CONNS | `1` (SQLite), `25` (PG) | int |
-| GLCMD_DB_MAX_IDLE_CONNS | `1` (SQLite), `5` (PG) | int |
-| DB_CONN_MAX_LIFETIME | `1h` | duration |
-| GLCMD_DB_LOG_LEVEL | `warn` | string |
-| DB_RETRY_MAX_RETRIES | `3` | int |
-| DB_RETRY_INITIAL_BACKOFF | `100ms` | duration |
-| DB_RETRY_MAX_BACKOFF | `500ms` | duration |
-| DB_RETRY_MULTIPLIER | `2.0` | float |
+| GLCMD_EMAIL | (required) | string |
+| GLCMD_PASSWORD | (required) | string |
 | GLCMD_FETCH_INTERVAL | `5m` | duration |
-| GLCMD_DISPLAY_INTERVAL | `1m` | duration |
-| GLCMD_ENABLE_EMOJIS | `true` | boolean |
 | GLCMD_API_PORT | `8080` | int |
 | GLCMD_API_URL | `http://localhost:8080` | string |
+| GLCMD_LOG_FORMAT | `text` | string |
+| GLCMD_LOG_LEVEL | `info` | string |
+| GLCMD_DB_PATH | `./data/glcmd.db` | string |
+| GLCMD_DB_MAX_OPEN_CONNS | `1` | int |
+| GLCMD_DB_MAX_IDLE_CONNS | `1` | int |
+| GLCMD_DB_LOG_LEVEL | `warn` | string |
