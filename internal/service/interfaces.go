@@ -10,8 +10,9 @@ import (
 
 // GlucoseService defines the interface for glucose measurement business logic.
 type GlucoseService interface {
-	// SaveMeasurement saves a glucose measurement with retry logic
-	SaveMeasurement(ctx context.Context, m *domain.GlucoseMeasurement) error
+	// SaveMeasurement saves a glucose measurement with retry logic.
+	// Returns (true, nil) if inserted, (false, nil) if duplicate was ignored.
+	SaveMeasurement(ctx context.Context, m *domain.GlucoseMeasurement) (inserted bool, err error)
 
 	// GetLatestMeasurement returns the most recent measurement
 	GetLatestMeasurement(ctx context.Context) (*domain.GlucoseMeasurement, error)

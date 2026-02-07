@@ -52,27 +52,31 @@ func NewGlucoseService(
 }
 
 // SaveMeasurement saves a glucose measurement with retry logic.
-func (s *GlucoseServiceImpl) SaveMeasurement(ctx context.Context, m *domain.GlucoseMeasurement) error {
+// Returns (true, nil) if inserted, (false, nil) if duplicate was ignored.
+func (s *GlucoseServiceImpl) SaveMeasurement(ctx context.Context, m *domain.GlucoseMeasurement) (bool, error) {
 	start := time.Now()
+	var inserted bool
 
 	// Execute with retry on retryable errors (database locks, etc.)
 	err := persistence.ExecuteWithRetry(ctx, s.retry, func() error {
-		return s.repo.Save(ctx, m)
+		var saveErr error
+		inserted, saveErr = s.repo.Save(ctx, m)
+		return saveErr
 	})
 
-	// Log performance metrics
 	duration := time.Since(start)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	s.logger.Debug("measurement saved",
 		"timestamp", m.Timestamp,
 		"value", m.Value,
+		"inserted", inserted,
 		"duration", duration,
 	)
 
-	return nil
+	return inserted, nil
 }
 
 // GetLatestMeasurement returns the most recent measurement.

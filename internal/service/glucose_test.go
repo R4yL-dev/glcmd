@@ -14,7 +14,7 @@ import (
 
 // MockMeasurementRepository for testing
 type MockMeasurementRepository struct {
-	SaveFunc             func(ctx context.Context, m *domain.GlucoseMeasurement) error
+	SaveFunc             func(ctx context.Context, m *domain.GlucoseMeasurement) (bool, error)
 	FindLatestFunc       func(ctx context.Context) (*domain.GlucoseMeasurement, error)
 	FindAllFunc          func(ctx context.Context) ([]*domain.GlucoseMeasurement, error)
 	FindByTimeRangeFunc  func(ctx context.Context, start, end time.Time) ([]*domain.GlucoseMeasurement, error)
@@ -23,11 +23,11 @@ type MockMeasurementRepository struct {
 	GetStatisticsFunc    func(ctx context.Context, filters repository.StatisticsFilters) (*repository.StatisticsResult, error)
 }
 
-func (m *MockMeasurementRepository) Save(ctx context.Context, measurement *domain.GlucoseMeasurement) error {
+func (m *MockMeasurementRepository) Save(ctx context.Context, measurement *domain.GlucoseMeasurement) (bool, error) {
 	if m.SaveFunc != nil {
 		return m.SaveFunc(ctx, measurement)
 	}
-	return nil
+	return true, nil
 }
 
 func (m *MockMeasurementRepository) FindLatest(ctx context.Context) (*domain.GlucoseMeasurement, error) {
@@ -76,12 +76,12 @@ func TestGlucoseService_SaveMeasurement_Success(t *testing.T) {
 	saveCalled := false
 
 	mockRepo := &MockMeasurementRepository{
-		SaveFunc: func(ctx context.Context, m *domain.GlucoseMeasurement) error {
+		SaveFunc: func(ctx context.Context, m *domain.GlucoseMeasurement) (bool, error) {
 			saveCalled = true
 			if m.Value != 7.5 {
 				t.Errorf("expected Value = 7.5, got %f", m.Value)
 			}
-			return nil
+			return true, nil
 		},
 	}
 
@@ -94,7 +94,7 @@ func TestGlucoseService_SaveMeasurement_Success(t *testing.T) {
 		Type:           domain.MeasurementTypeCurrent,
 	}
 
-	err := service.SaveMeasurement(context.Background(), measurement)
+	inserted, err := service.SaveMeasurement(context.Background(), measurement)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -102,20 +102,24 @@ func TestGlucoseService_SaveMeasurement_Success(t *testing.T) {
 	if !saveCalled {
 		t.Error("expected Save to be called")
 	}
+
+	if !inserted {
+		t.Error("expected inserted to be true")
+	}
 }
 
 func TestGlucoseService_SaveMeasurement_RetryOnTransientError(t *testing.T) {
 	attemptCount := 0
 
 	mockRepo := &MockMeasurementRepository{
-		SaveFunc: func(ctx context.Context, m *domain.GlucoseMeasurement) error {
+		SaveFunc: func(ctx context.Context, m *domain.GlucoseMeasurement) (bool, error) {
 			attemptCount++
 			// Fail first attempt, succeed on second
 			if attemptCount == 1 {
 				// Simulate a retryable error (database locked)
-				return errors.New("database is locked")
+				return false, errors.New("database is locked")
 			}
-			return nil
+			return true, nil
 		},
 	}
 
@@ -127,7 +131,7 @@ func TestGlucoseService_SaveMeasurement_RetryOnTransientError(t *testing.T) {
 		Type:      domain.MeasurementTypeCurrent,
 	}
 
-	err := service.SaveMeasurement(context.Background(), measurement)
+	_, err := service.SaveMeasurement(context.Background(), measurement)
 	if err != nil {
 		t.Fatalf("unexpected error after retry: %v", err)
 	}
@@ -142,9 +146,9 @@ func TestGlucoseService_SaveMeasurement_FailureAfterRetries(t *testing.T) {
 	persistentError := errors.New("persistent database error")
 
 	mockRepo := &MockMeasurementRepository{
-		SaveFunc: func(ctx context.Context, m *domain.GlucoseMeasurement) error {
+		SaveFunc: func(ctx context.Context, m *domain.GlucoseMeasurement) (bool, error) {
 			// Always fail
-			return persistentError
+			return false, persistentError
 		},
 	}
 
@@ -156,7 +160,7 @@ func TestGlucoseService_SaveMeasurement_FailureAfterRetries(t *testing.T) {
 		Type:      domain.MeasurementTypeCurrent,
 	}
 
-	err := service.SaveMeasurement(context.Background(), measurement)
+	_, err := service.SaveMeasurement(context.Background(), measurement)
 	if err == nil {
 		t.Fatal("expected error after retries, got nil")
 	}
@@ -324,12 +328,12 @@ func TestGlucoseService_GetMeasurementsByTimeRange_Empty(t *testing.T) {
 
 func TestGlucoseService_SaveMeasurement_ValidatesType(t *testing.T) {
 	mockRepo := &MockMeasurementRepository{
-		SaveFunc: func(ctx context.Context, m *domain.GlucoseMeasurement) error {
+		SaveFunc: func(ctx context.Context, m *domain.GlucoseMeasurement) (bool, error) {
 			// Verify measurement type is valid
 			if m.Type != domain.MeasurementTypeCurrent && m.Type != domain.MeasurementTypeHistorical {
 				t.Errorf("invalid measurement type: %d", m.Type)
 			}
-			return nil
+			return true, nil
 		},
 	}
 
@@ -351,7 +355,7 @@ func TestGlucoseService_SaveMeasurement_ValidatesType(t *testing.T) {
 				Type:      tt.typ,
 			}
 
-			err := service.SaveMeasurement(context.Background(), measurement)
+			_, err := service.SaveMeasurement(context.Background(), measurement)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}

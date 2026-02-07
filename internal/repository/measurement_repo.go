@@ -23,7 +23,8 @@ func NewMeasurementRepository(db *gorm.DB) *MeasurementRepositoryGORM {
 }
 
 // Save creates or ignores a measurement (duplicate timestamps are silently ignored).
-func (r *MeasurementRepositoryGORM) Save(ctx context.Context, m *domain.GlucoseMeasurement) error {
+// Returns (true, nil) if inserted, (false, nil) if duplicate was ignored.
+func (r *MeasurementRepositoryGORM) Save(ctx context.Context, m *domain.GlucoseMeasurement) (bool, error) {
 	db := txOrDefault(ctx, r.db)
 
 	// ON CONFLICT DO NOTHING - ignore duplicates based on unique timestamp
@@ -32,7 +33,9 @@ func (r *MeasurementRepositoryGORM) Save(ctx context.Context, m *domain.GlucoseM
 		DoNothing: true,
 	}).Create(m)
 
-	return result.Error
+	// RowsAffected = 0 if conflict (duplicate), 1 if inserted successfully
+	// No extra query needed - value provided by SQL driver
+	return result.RowsAffected > 0, result.Error
 }
 
 // FindLatest returns the most recent measurement by timestamp.

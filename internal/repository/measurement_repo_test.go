@@ -19,7 +19,7 @@ func TestMeasurementRepository_Save(t *testing.T) {
 		ValueInMgPerDl: 99,
 	}
 
-	err := repo.Save(context.Background(), measurement)
+	_, err := repo.Save(context.Background(), measurement)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -54,13 +54,21 @@ func TestMeasurementRepository_Save_DuplicateTimestamp(t *testing.T) {
 	}
 
 	// Save first measurement
-	if err := repo.Save(context.Background(), m1); err != nil {
+	inserted1, err := repo.Save(context.Background(), m1)
+	if err != nil {
 		t.Fatalf("failed to save m1: %v", err)
+	}
+	if !inserted1 {
+		t.Error("expected first measurement to be inserted")
 	}
 
 	// Save duplicate (should be ignored due to ON CONFLICT DO NOTHING)
-	if err := repo.Save(context.Background(), m2); err != nil {
+	inserted2, err := repo.Save(context.Background(), m2)
+	if err != nil {
 		t.Fatalf("failed to save m2: %v", err)
+	}
+	if inserted2 {
+		t.Error("expected duplicate measurement to be skipped (inserted=false)")
 	}
 
 	// Verify only one measurement exists (the first one)
@@ -92,7 +100,7 @@ func TestMeasurementRepository_FindLatest(t *testing.T) {
 	}
 
 	for _, m := range measurements {
-		if err := repo.Save(context.Background(), m); err != nil {
+		if _, err := repo.Save(context.Background(), m); err != nil {
 			t.Fatalf("failed to save measurement: %v", err)
 		}
 	}
@@ -132,7 +140,7 @@ func TestMeasurementRepository_FindByTimeRange(t *testing.T) {
 	}
 
 	for _, m := range measurements {
-		if err := repo.Save(context.Background(), m); err != nil {
+		if _, err := repo.Save(context.Background(), m); err != nil {
 			t.Fatalf("failed to save measurement: %v", err)
 		}
 	}
@@ -170,7 +178,7 @@ func TestMeasurementRepository_FindByTimeRange_EmptyRange(t *testing.T) {
 		Value:          5.5,
 		ValueInMgPerDl: 99,
 	}
-	if err := repo.Save(context.Background(), m); err != nil {
+	if _, err := repo.Save(context.Background(), m); err != nil {
 		t.Fatalf("failed to save: %v", err)
 	}
 

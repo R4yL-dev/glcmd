@@ -45,8 +45,9 @@ type StatisticsResult struct {
 
 // MeasurementRepository defines the interface for glucose measurement persistence.
 type MeasurementRepository interface {
-	// Save creates or ignores a measurement (duplicate timestamps are silently ignored)
-	Save(ctx context.Context, m *domain.GlucoseMeasurement) error
+	// Save creates or ignores a measurement (duplicate timestamps are silently ignored).
+	// Returns (true, nil) if inserted, (false, nil) if duplicate was ignored.
+	Save(ctx context.Context, m *domain.GlucoseMeasurement) (inserted bool, err error)
 
 	// FindLatest returns the most recent measurement by timestamp
 	FindLatest(ctx context.Context) (*domain.GlucoseMeasurement, error)
