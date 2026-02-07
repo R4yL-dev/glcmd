@@ -60,6 +60,7 @@ type Daemon struct {
 	lastFetchError       string    // Last fetch error message (empty if no error)
 	lastFetchTime        time.Time // Last successful fetch time
 	startTime            time.Time // Daemon start time
+	lastTargets          *domain.GlucoseTargets // Cache to avoid redundant saves
 }
 
 // New creates a new Daemon instance.
@@ -560,6 +561,7 @@ func (d *Daemon) storeSensor(sensor *libreclient.SensorData) error {
 }
 
 // storeTargets extracts glucose targets from a ConnectionsResponse and saves them.
+// Uses in-memory cache to avoid redundant saves when values haven't changed.
 func (d *Daemon) storeTargets(resp *libreclient.ConnectionsResponse) {
 	if len(resp.Data) == 0 {
 		return
@@ -568,6 +570,14 @@ func (d *Daemon) storeTargets(resp *libreclient.ConnectionsResponse) {
 	data := &resp.Data[0]
 	if data.TargetHigh == 0 && data.TargetLow == 0 {
 		return
+	}
+
+	// Check if values have changed
+	if d.lastTargets != nil &&
+		d.lastTargets.TargetHigh == data.TargetHigh &&
+		d.lastTargets.TargetLow == data.TargetLow &&
+		d.lastTargets.UnitOfMeasure == data.Uom {
+		return // Unchanged, skip save
 	}
 
 	targets := &domain.GlucoseTargets{
@@ -581,6 +591,10 @@ func (d *Daemon) storeTargets(resp *libreclient.ConnectionsResponse) {
 
 	if err := d.configService.SaveGlucoseTargets(ctx, targets); err != nil {
 		slog.Warn("failed to store glucose targets", "error", err)
+		return
 	}
+
+	// Update cache on successful save
+	d.lastTargets = targets
 }
 
