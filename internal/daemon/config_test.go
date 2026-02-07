@@ -12,21 +12,11 @@ func TestDefaultConfig(t *testing.T) {
 	if config.FetchInterval != 5*time.Minute {
 		t.Errorf("expected FetchInterval = 5m, got %v", config.FetchInterval)
 	}
-
-	if config.DisplayInterval != 1*time.Minute {
-		t.Errorf("expected DisplayInterval = 1m, got %v", config.DisplayInterval)
-	}
-
-	if config.EnableEmojis != true {
-		t.Error("expected EnableEmojis = true")
-	}
 }
 
 func TestLoadConfigFromEnv_Defaults(t *testing.T) {
 	// Clear all relevant env vars
 	os.Unsetenv("GLCMD_FETCH_INTERVAL")
-	os.Unsetenv("GLCMD_DISPLAY_INTERVAL")
-	os.Unsetenv("GLCMD_ENABLE_EMOJIS")
 
 	config, err := LoadConfigFromEnv()
 	if err != nil {
@@ -37,25 +27,13 @@ func TestLoadConfigFromEnv_Defaults(t *testing.T) {
 	if config.FetchInterval != 5*time.Minute {
 		t.Errorf("expected default FetchInterval = 5m, got %v", config.FetchInterval)
 	}
-
-	if config.DisplayInterval != 1*time.Minute {
-		t.Errorf("expected default DisplayInterval = 1m, got %v", config.DisplayInterval)
-	}
-
-	if config.EnableEmojis != true {
-		t.Error("expected default EnableEmojis = true")
-	}
 }
 
 func TestLoadConfigFromEnv_CustomValues(t *testing.T) {
 	// Set custom env vars
 	os.Setenv("GLCMD_FETCH_INTERVAL", "10m")
-	os.Setenv("GLCMD_DISPLAY_INTERVAL", "30s")
-	os.Setenv("GLCMD_ENABLE_EMOJIS", "false")
 	defer func() {
 		os.Unsetenv("GLCMD_FETCH_INTERVAL")
-		os.Unsetenv("GLCMD_DISPLAY_INTERVAL")
-		os.Unsetenv("GLCMD_ENABLE_EMOJIS")
 	}()
 
 	config, err := LoadConfigFromEnv()
@@ -65,14 +43,6 @@ func TestLoadConfigFromEnv_CustomValues(t *testing.T) {
 
 	if config.FetchInterval != 10*time.Minute {
 		t.Errorf("expected FetchInterval = 10m, got %v", config.FetchInterval)
-	}
-
-	if config.DisplayInterval != 30*time.Second {
-		t.Errorf("expected DisplayInterval = 30s, got %v", config.DisplayInterval)
-	}
-
-	if config.EnableEmojis != false {
-		t.Error("expected EnableEmojis = false")
 	}
 }
 
@@ -91,25 +61,6 @@ func TestLoadConfigFromEnv_InvalidFetchInterval(t *testing.T) {
 	}
 }
 
-func TestLoadConfigFromEnv_InvalidDisplayInterval(t *testing.T) {
-	os.Setenv("GLCMD_DISPLAY_INTERVAL", "not-a-duration")
-	defer os.Unsetenv("GLCMD_DISPLAY_INTERVAL")
-
-	_, err := LoadConfigFromEnv()
-	if err == nil {
-		t.Fatal("expected error for invalid GLCMD_DISPLAY_INTERVAL, got nil")
-	}
-}
-
-func TestLoadConfigFromEnv_InvalidEmojisFlag(t *testing.T) {
-	os.Setenv("GLCMD_ENABLE_EMOJIS", "maybe")
-	defer os.Unsetenv("GLCMD_ENABLE_EMOJIS")
-
-	_, err := LoadConfigFromEnv()
-	if err == nil {
-		t.Fatal("expected error for invalid GLCMD_ENABLE_EMOJIS, got nil")
-	}
-}
 
 func TestParseDuration_ValidFormats(t *testing.T) {
 	tests := []struct {
@@ -180,12 +131,8 @@ func TestParseDuration_ZeroDuration(t *testing.T) {
 func TestLoadConfigFromEnv_ComplexScenario(t *testing.T) {
 	// Test with realistic production values
 	os.Setenv("GLCMD_FETCH_INTERVAL", "3m")
-	os.Setenv("GLCMD_DISPLAY_INTERVAL", "2m")
-	os.Setenv("GLCMD_ENABLE_EMOJIS", "true")
 	defer func() {
 		os.Unsetenv("GLCMD_FETCH_INTERVAL")
-		os.Unsetenv("GLCMD_DISPLAY_INTERVAL")
-		os.Unsetenv("GLCMD_ENABLE_EMOJIS")
 	}()
 
 	config, err := LoadConfigFromEnv()
@@ -196,13 +143,5 @@ func TestLoadConfigFromEnv_ComplexScenario(t *testing.T) {
 	// Verify all values are correctly parsed
 	if config.FetchInterval != 3*time.Minute {
 		t.Errorf("FetchInterval: expected 3m, got %v", config.FetchInterval)
-	}
-
-	if config.DisplayInterval != 2*time.Minute {
-		t.Errorf("DisplayInterval: expected 2m, got %v", config.DisplayInterval)
-	}
-
-	if config.EnableEmojis != true {
-		t.Error("EnableEmojis: expected true")
 	}
 }

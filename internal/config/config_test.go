@@ -24,12 +24,6 @@ func TestLoad_Success(t *testing.T) {
 	if cfg.Daemon.FetchInterval != 5*time.Minute {
 		t.Errorf("expected FetchInterval 5m, got %v", cfg.Daemon.FetchInterval)
 	}
-	if cfg.Daemon.DisplayInterval != 1*time.Minute {
-		t.Errorf("expected DisplayInterval 1m, got %v", cfg.Daemon.DisplayInterval)
-	}
-	if !cfg.Daemon.EnableEmojis {
-		t.Errorf("expected EnableEmojis true, got false")
-	}
 
 	// Verify database defaults (SQLite)
 	if cfg.Database.Type != "sqlite" {
@@ -131,16 +125,12 @@ func TestLoad_CustomValues(t *testing.T) {
 	os.Setenv("GLCMD_PASSWORD", "custompassword")
 	os.Setenv("GLCMD_API_PORT", "9090")
 	os.Setenv("GLCMD_FETCH_INTERVAL", "10m")
-	os.Setenv("GLCMD_DISPLAY_INTERVAL", "2m")
-	os.Setenv("GLCMD_ENABLE_EMOJIS", "false")
 	os.Setenv("GLCMD_DB_PATH", "/custom/path/db.sqlite")
 	defer func() {
 		os.Unsetenv("GLCMD_EMAIL")
 		os.Unsetenv("GLCMD_PASSWORD")
 		os.Unsetenv("GLCMD_API_PORT")
 		os.Unsetenv("GLCMD_FETCH_INTERVAL")
-		os.Unsetenv("GLCMD_DISPLAY_INTERVAL")
-		os.Unsetenv("GLCMD_ENABLE_EMOJIS")
 		os.Unsetenv("GLCMD_DB_PATH")
 	}()
 
@@ -158,12 +148,6 @@ func TestLoad_CustomValues(t *testing.T) {
 	}
 	if cfg.Daemon.FetchInterval != 10*time.Minute {
 		t.Errorf("expected FetchInterval 10m, got %v", cfg.Daemon.FetchInterval)
-	}
-	if cfg.Daemon.DisplayInterval != 2*time.Minute {
-		t.Errorf("expected DisplayInterval 2m, got %v", cfg.Daemon.DisplayInterval)
-	}
-	if cfg.Daemon.EnableEmojis {
-		t.Errorf("expected EnableEmojis false, got true")
 	}
 	if cfg.Database.SQLitePath != "/custom/path/db.sqlite" {
 		t.Errorf("expected SQLite path /custom/path/db.sqlite, got %s", cfg.Database.SQLitePath)
@@ -189,20 +173,12 @@ func TestToPersistenceConfig(t *testing.T) {
 
 func TestToDaemonConfig(t *testing.T) {
 	daemonCfg := DaemonConfig{
-		FetchInterval:   5 * time.Minute,
-		DisplayInterval: 1 * time.Minute,
-		EnableEmojis:    true,
+		FetchInterval: 5 * time.Minute,
 	}
 
 	cfg := daemonCfg.ToDaemonConfig()
 
 	if cfg.FetchInterval != daemonCfg.FetchInterval {
 		t.Errorf("expected FetchInterval %v, got %v", daemonCfg.FetchInterval, cfg.FetchInterval)
-	}
-	if cfg.DisplayInterval != daemonCfg.DisplayInterval {
-		t.Errorf("expected DisplayInterval %v, got %v", daemonCfg.DisplayInterval, cfg.DisplayInterval)
-	}
-	if cfg.EnableEmojis != daemonCfg.EnableEmojis {
-		t.Errorf("expected EnableEmojis %v, got %v", daemonCfg.EnableEmojis, cfg.EnableEmojis)
 	}
 }

@@ -20,9 +20,7 @@ type Config struct {
 
 // DaemonConfig holds daemon configuration.
 type DaemonConfig struct {
-	FetchInterval   time.Duration
-	DisplayInterval time.Duration
-	EnableEmojis    bool
+	FetchInterval time.Duration
 }
 
 // DatabaseConfig holds database configuration.
@@ -98,9 +96,7 @@ func loadDaemonConfig() (DaemonConfig, error) {
 	}
 
 	return DaemonConfig{
-		FetchInterval:   cfg.FetchInterval,
-		DisplayInterval: cfg.DisplayInterval,
-		EnableEmojis:    cfg.EnableEmojis,
+		FetchInterval: cfg.FetchInterval,
 	}, nil
 }
 
@@ -187,8 +183,6 @@ func (c *DatabaseConfig) ToPersistenceConfig() *persistence.DatabaseConfig {
 // ToDaemonConfig converts DaemonConfig to daemon.Config for backward compatibility.
 func (c *DaemonConfig) ToDaemonConfig() *daemon.Config {
 	return &daemon.Config{
-		FetchInterval:   c.FetchInterval,
-		DisplayInterval: c.DisplayInterval,
-		EnableEmojis:    c.EnableEmojis,
+		FetchInterval: c.FetchInterval,
 	}
 }

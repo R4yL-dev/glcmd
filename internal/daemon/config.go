@@ -3,23 +3,18 @@ package daemon
 import (
 	"fmt"
 	"os"
-	"strconv"
 	"time"
 )
 
 // Config holds daemon configuration.
 type Config struct {
-	FetchInterval   time.Duration // Interval between API fetches (default: 5m)
-	DisplayInterval time.Duration // Interval between measurement displays (default: 1m)
-	EnableEmojis    bool          // Enable emoji display (default: true)
+	FetchInterval time.Duration // Interval between API fetches (default: 5m)
 }
 
 // DefaultConfig returns default daemon configuration.
 func DefaultConfig() *Config {
 	return &Config{
-		FetchInterval:   5 * time.Minute,
-		DisplayInterval: 1 * time.Minute,
-		EnableEmojis:    true,
+		FetchInterval: 5 * time.Minute,
 	}
 }
 
@@ -35,24 +30,6 @@ func LoadConfigFromEnv() (*Config, error) {
 			return nil, fmt.Errorf("invalid GLCMD_FETCH_INTERVAL: %w", err)
 		}
 		config.FetchInterval = duration
-	}
-
-	// Display interval
-	if displayInterval := os.Getenv("GLCMD_DISPLAY_INTERVAL"); displayInterval != "" {
-		duration, err := parseDuration(displayInterval)
-		if err != nil {
-			return nil, fmt.Errorf("invalid GLCMD_DISPLAY_INTERVAL: %w", err)
-		}
-		config.DisplayInterval = duration
-	}
-
-	// Enable emojis
-	if enableEmojis := os.Getenv("GLCMD_ENABLE_EMOJIS"); enableEmojis != "" {
-		enabled, err := strconv.ParseBool(enableEmojis)
-		if err != nil {
-			return nil, fmt.Errorf("invalid GLCMD_ENABLE_EMOJIS (use true/false): %w", err)
-		}
-		config.EnableEmojis = enabled
 	}
 
 	return config, nil
