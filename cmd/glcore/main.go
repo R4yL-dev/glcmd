@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -12,22 +13,50 @@ import (
 	"github.com/R4yL-dev/glcmd/internal/config"
 	"github.com/R4yL-dev/glcmd/internal/daemon"
 	"github.com/R4yL-dev/glcmd/internal/domain"
-	"github.com/R4yL-dev/glcmd/internal/logger"
 	"github.com/R4yL-dev/glcmd/internal/persistence"
 	"github.com/R4yL-dev/glcmd/internal/repository"
 	"github.com/R4yL-dev/glcmd/internal/service"
 )
 
+// getLogLevel returns the slog level from GLCMD_LOG_LEVEL env var.
+// Defaults to INFO.
+func getLogLevel() slog.Level {
+	level := strings.ToLower(os.Getenv("GLCMD_LOG_LEVEL"))
+	switch level {
+	case "debug":
+		return slog.LevelDebug
+	case "warn", "warning":
+		return slog.LevelWarn
+	case "error":
+		return slog.LevelError
+	default:
+		return slog.LevelInfo
+	}
+}
+
+// setupLogger configures slog based on environment variables.
+// GLCMD_LOG_FORMAT: "text" (default) or "json"
+// GLCMD_LOG_LEVEL: "debug", "info" (default), "warn", "error"
+func setupLogger() {
+	opts := &slog.HandlerOptions{
+		Level: getLogLevel(),
+	}
+
+	var handler slog.Handler
+	if os.Getenv("GLCMD_LOG_FORMAT") == "json" {
+		handler = slog.NewJSONHandler(os.Stderr, opts)
+	} else {
+		handler = slog.NewTextHandler(os.Stderr, opts)
+	}
+
+	slog.SetDefault(slog.New(handler))
+}
+
 func main() {
 	// Setup logger
-	logFile, err := logger.Setup(logger.DefaultLogFile, slog.LevelInfo)
-	if err != nil {
-		slog.Error("failed to setup logger", "error", err)
-		os.Exit(1)
-	}
-	defer logFile.Close()
+	setupLogger()
 
-	slog.Info("glcmd starting")
+	slog.Info("glcore starting")
 
 	// Load centralized configuration
 	cfg, err := config.Load()
@@ -37,13 +66,17 @@ func main() {
 	}
 
 	// Database setup
+	dbStart := time.Now()
 	dbConfig := cfg.Database.ToPersistenceConfig()
 	database, err := persistence.NewDatabase(dbConfig)
 	if err != nil {
 		slog.Error("failed to connect to database", "error", err)
 		os.Exit(1)
 	}
-	defer database.Close()
+	defer func() {
+		database.Close()
+		slog.Info("database closed")
+	}()
 
 	// Run migrations
 	if err := database.AutoMigrate(
@@ -65,9 +98,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	slog.Info("database connected successfully",
+	slog.Info("database ready",
 		"type", dbConfig.Type,
-		"path", dbConfig.SQLitePath,
+		"duration", time.Since(dbStart),
 	)
 
 	// Create repositories
@@ -85,16 +118,8 @@ func main() {
 	sensorService := service.NewSensorService(sensorRepo, uow, slog.Default())
 	configService := service.NewConfigService(userRepo, deviceRepo, targetsRepo, slog.Default())
 
-	slog.Info("services initialized successfully")
-
 	// Convert daemon config
 	daemonConfig := cfg.Daemon.ToDaemonConfig()
-
-	slog.Info("daemon configuration loaded",
-		"fetchInterval", daemonConfig.FetchInterval,
-		"displayInterval", daemonConfig.DisplayInterval,
-		"emojisEnabled", daemonConfig.EnableEmojis,
-	)
 
 	// Create daemon
 	d, err := daemon.New(glucoseService, sensorService, configService, daemonConfig, cfg.Credentials.Email, cfg.Credentials.Password)
@@ -121,10 +146,10 @@ func main() {
 	)
 
 	if err := apiServer.Start(); err != nil {
-		slog.Error("failed to start unified API server", "error", err)
+		slog.Error("failed to start API server", "error", err)
 		os.Exit(1)
 	}
-	slog.Info("unified API server started", "port", cfg.API.Port)
+	slog.Info("API server listening", "port", cfg.API.Port)
 
 	// Setup signal handling for graceful shutdown
 	sigChan := make(chan os.Signal, 1)
@@ -139,7 +164,7 @@ func main() {
 	// Wait for shutdown signal or error
 	select {
 	case sig := <-sigChan:
-		slog.Info("received signal, shutting down", "signal", sig)
+		slog.Info("shutting down", "signal", sig)
 
 		// Stop daemon
 		d.Stop()
@@ -170,5 +195,5 @@ func main() {
 		}
 	}
 
-	slog.Info("glcmd stopped successfully")
+	slog.Info("glcore stopped")
 }
