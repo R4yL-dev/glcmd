@@ -15,8 +15,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"time"
+
+	"github.com/R4yL-dev/glcmd/internal/logger"
 )
 
 const (
@@ -60,6 +63,7 @@ func NewClient(httpClient *http.Client) *Client {
 //
 // Optional auth can be provided via token and accountID (pass empty strings to skip auth).
 func (c *Client) executeRequest(ctx context.Context, method, path string, body interface{}, token, accountID string) ([]byte, error) {
+	start := time.Now()
 	url := c.baseURL + path
 
 	var reqBody io.Reader
@@ -89,6 +93,12 @@ func (c *Client) executeRequest(ctx context.Context, method, path string, body i
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
+		slog.Debug("api request failed",
+			"method", method,
+			"path", logger.RedactPath(path),
+			"error", err,
+			"duration", time.Since(start),
+		)
 		return nil, &NetworkError{Err: err}
 	}
 	defer resp.Body.Close()
@@ -98,6 +108,17 @@ func (c *Client) executeRequest(ctx context.Context, method, path string, body i
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
+
+	duration := time.Since(start)
+
+	// Debug log the request/response
+	slog.Debug("api request",
+		"method", method,
+		"path", logger.RedactPath(path),
+		"status", resp.StatusCode,
+		"bodySize", len(respBody),
+		"duration", duration,
+	)
 
 	// Handle HTTP status codes
 	switch {
