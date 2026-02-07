@@ -25,11 +25,12 @@ func (s *Server) corsMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// responseWriter wraps http.ResponseWriter to capture status code
+// responseWriter wraps http.ResponseWriter to capture status code and bytes written
 type responseWriter struct {
 	http.ResponseWriter
-	statusCode int
-	written    bool
+	statusCode   int
+	written      bool
+	bytesWritten int
 }
 
 func (rw *responseWriter) WriteHeader(statusCode int) {
@@ -44,7 +45,9 @@ func (rw *responseWriter) Write(b []byte) (int, error) {
 	if !rw.written {
 		rw.WriteHeader(http.StatusOK)
 	}
-	return rw.ResponseWriter.Write(b)
+	n, err := rw.ResponseWriter.Write(b)
+	rw.bytesWritten += n
+	return n, err
 }
 
 // loggingMiddleware logs HTTP requests
@@ -61,12 +64,13 @@ func (s *Server) loggingMiddleware(next http.Handler) http.Handler {
 
 		next.ServeHTTP(ww, r)
 
-		s.logger.Info("API request",
+		s.logger.Info("api request",
 			"method", r.Method,
 			"path", r.URL.Path,
 			"query", r.URL.RawQuery,
 			"status", ww.statusCode,
-			"duration", time.Since(start).String(),
+			"bodySize", ww.bytesWritten,
+			"duration", time.Since(start),
 		)
 	})
 }
