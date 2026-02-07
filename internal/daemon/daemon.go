@@ -38,25 +38,23 @@ import (
 //
 // It manages:
 //   - A ticker for periodic fetching (configurable via GLCMD_FETCH_INTERVAL)
-//   - A ticker for periodic display (configurable via GLCMD_DISPLAY_INTERVAL)
 //   - Context-based lifecycle management for graceful shutdown
 //   - Business logic services for persisting fetched data
 //   - Authentication with LibreView API
 type Daemon struct {
-	glucoseService      service.GlucoseService
-	sensorService       service.SensorService
-	configService       service.ConfigService
-	ctx                 context.Context
-	cancel              context.CancelFunc
-	ticker              *time.Ticker
-	displayTicker       *time.Ticker
-	config              *Config
-	client              *libreclient.Client
-	email               string
-	password            string
-	token               string
-	accountID           string
-	patientID           string
+	glucoseService       service.GlucoseService
+	sensorService        service.SensorService
+	configService        service.ConfigService
+	ctx                  context.Context
+	cancel               context.CancelFunc
+	ticker               *time.Ticker
+	config               *Config
+	client               *libreclient.Client
+	email                string
+	password             string
+	token                string
+	accountID            string
+	patientID            string
 	consecutiveErrors    int       // Counter for consecutive fetch errors
 	maxConsecutiveErrors int       // Max allowed consecutive errors before alerting
 	lastFetchError       string    // Last fetch error message (empty if no error)
@@ -127,84 +125,58 @@ func New(
 //
 // Returns an error if the daemon cannot start or encounters a fatal error.
 func (d *Daemon) Run() error {
-	slog.Info("starting daemon",
-		"fetchInterval", d.config.FetchInterval,
-		"displayInterval", d.config.DisplayInterval,
-		"emojisEnabled", d.config.EnableEmojis,
-	)
-
 	// Step 1: Authenticate
-	slog.Info("authenticating with LibreView API")
+	authStart := time.Now()
 	if err := d.authenticate(); err != nil {
 		return fmt.Errorf("authentication failed: %w", err)
 	}
-	slog.Info("authentication successful")
+	slog.Info("authenticated", "duration", time.Since(authStart))
 
 	// Step 2: Initial fetch (historical data from /graph)
-	slog.Info("performing initial data fetch")
 	if err := d.initialFetch(); err != nil {
 		return fmt.Errorf("initial fetch failed: %w", err)
 	}
-	slog.Info("initial fetch completed successfully")
 
 	// Step 3: Start ticker for periodic fetches
 	d.ticker = time.NewTicker(d.config.FetchInterval)
 	defer d.ticker.Stop()
 
-	// Step 4: Start ticker for periodic display
-	d.displayTicker = time.NewTicker(d.config.DisplayInterval)
-	defer d.displayTicker.Stop()
+	slog.Info("ready", "fetchInterval", d.config.FetchInterval)
 
-	slog.Info("daemon started successfully",
-		"fetchInterval", d.config.FetchInterval,
-		"displayInterval", d.config.DisplayInterval,
-	)
-
-	// Step 5: Main loop - fetch periodically until stopped
+	// Step 4: Main loop - fetch periodically until stopped
 	for {
 		select {
 		case <-d.ticker.C:
-			// Time to fetch new data
-			slog.Info("fetching new measurement")
+			start := time.Now()
 			if err := d.fetch(); err != nil {
-				// Increment error counter
 				d.consecutiveErrors++
 				d.lastFetchError = err.Error()
 
-				// Log error but don't stop the daemon
-				// Network errors are expected and should not kill the daemon
 				slog.Error("fetch failed",
 					"error", err,
-					"consecutiveErrors", d.consecutiveErrors,
+					"duration", time.Since(start),
 				)
 
 				// Circuit breaker: alert after max consecutive errors
 				if d.consecutiveErrors >= d.maxConsecutiveErrors {
-					slog.Error("CRITICAL: max consecutive errors reached, daemon may be unhealthy",
+					slog.Error("CRITICAL: max consecutive errors reached",
 						"consecutiveErrors", d.consecutiveErrors,
 						"maxAllowed", d.maxConsecutiveErrors,
 					)
 				}
 			} else {
-				// Reset error counter on success
+				duration := time.Since(start)
 				if d.consecutiveErrors > 0 {
-					slog.Info("fetch recovered after errors",
-						"previousConsecutiveErrors", d.consecutiveErrors,
-					)
-					d.consecutiveErrors = 0
+					slog.Info("fetch recovered", "previousErrors", d.consecutiveErrors)
 				}
+				d.consecutiveErrors = 0
 				d.lastFetchError = ""
 				d.lastFetchTime = time.Now()
-				slog.Info("measurement fetched successfully")
+
+				slog.Info("measurement fetched", "duration", duration)
 			}
 
-		case <-d.displayTicker.C:
-			// Time to display the last measurement
-			d.displayLastMeasurement()
-
 		case <-d.ctx.Done():
-			// Context cancelled - graceful shutdown
-			slog.Info("daemon shutting down gracefully")
 			return nil
 		}
 	}
@@ -248,16 +220,13 @@ type HealthStatus struct {
 //
 // This method:
 //   - Cancels the daemon's context
-//   - Stops the tickers if running
+//   - Stops the ticker if running
 //   - Allows in-progress operations to complete
 //
 // After calling Stop(), the Run() method will return.
 func (d *Daemon) Stop() {
 	if d.ticker != nil {
 		d.ticker.Stop()
-	}
-	if d.displayTicker != nil {
-		d.displayTicker.Stop()
 	}
 	d.cancel()
 }
@@ -284,6 +253,8 @@ func (d *Daemon) authenticate() error {
 
 // initialFetch performs the initial data fetch from /connections and /graph.
 func (d *Daemon) initialFetch() error {
+	start := time.Now()
+
 	ctx, cancel := context.WithTimeout(d.ctx, 30*time.Second)
 	defer cancel()
 
@@ -291,12 +262,10 @@ func (d *Daemon) initialFetch() error {
 	slog.Debug("fetching connections to obtain patientID")
 	connectionsResp, err := d.client.GetConnections(ctx, d.token, d.accountID)
 	if err != nil {
-		slog.Error("failed to get connections", "error", err)
 		return fmt.Errorf("failed to get connections: %w", err)
 	}
 
 	if len(connectionsResp.Data) == 0 {
-		slog.Error("no patient data in connections response")
 		return fmt.Errorf("no patient data in connections response")
 	}
 
@@ -304,41 +273,46 @@ func (d *Daemon) initialFetch() error {
 	slog.Debug("patient ID obtained", "patientID", logger.RedactSensitive(d.patientID))
 
 	// Store current measurement from /connections
-	if err := d.storeCurrentMeasurement(&connectionsResp.Data[0].GlucoseMeasurement); err != nil {
-		slog.Error("failed to store current measurement", "error", err)
+	if _, err := d.storeCurrentMeasurement(&connectionsResp.Data[0].GlucoseMeasurement); err != nil {
 		return fmt.Errorf("failed to store current measurement: %w", err)
 	}
-	slog.Debug("current measurement stored")
 
 	// Now fetch historical data from /graph
 	slog.Debug("fetching historical data from /graph")
 	graphResp, err := d.client.GetGraph(ctx, d.token, d.accountID, d.patientID)
 	if err != nil {
-		slog.Error("failed to get graph data", "error", err)
 		return fmt.Errorf("failed to get graph data: %w", err)
 	}
 
-	// Store historical measurements
-	storedCount := 0
+	// Store historical measurements and count new vs skipped
+	newCount := 0
+	skippedCount := 0
 	for _, point := range graphResp.Data.GraphData {
-		if err := d.storeHistoricalMeasurement(&point); err != nil {
-			slog.Error("failed to store historical measurement", "error", err)
+		inserted, err := d.storeHistoricalMeasurement(&point)
+		if err != nil {
 			return fmt.Errorf("failed to store historical measurement: %w", err)
 		}
-		storedCount++
+		if inserted {
+			newCount++
+		} else {
+			skippedCount++
+		}
 	}
-	slog.Info("historical measurements stored", "count", storedCount)
 
 	// Store sensor configuration
 	sensor := &graphResp.Data.Connection.Sensor
 	if err := d.storeSensor(sensor); err != nil {
-		slog.Error("failed to store sensor", "error", err)
 		return fmt.Errorf("failed to store sensor: %w", err)
 	}
-	slog.Debug("sensor configuration stored", "serialNumber", sensor.SN)
 
 	// Store glucose targets from /connections response
 	d.storeTargets(connectionsResp)
+
+	slog.Info("initial fetch completed",
+		"new", newCount,
+		"skipped", skippedCount,
+		"duration", time.Since(start),
+	)
 
 	return nil
 }
@@ -405,17 +379,24 @@ func (d *Daemon) fetch() error {
 	}
 
 	if len(connectionsResp.Data) == 0 {
-		slog.Error("no patient data in periodic fetch")
 		return fmt.Errorf("no patient data in connections response")
 	}
 
 	gm := &connectionsResp.Data[0].GlucoseMeasurement
-	slog.Debug("measurement received", "value", gm.Value, "trendArrow", gm.TrendArrow)
 
 	// Store the measurement
-	if err := d.storeCurrentMeasurement(gm); err != nil {
+	if _, err := d.storeCurrentMeasurement(gm); err != nil {
 		return err
 	}
+
+	// Debug: log all measurement data
+	slog.Debug("measurement",
+		"value", gm.Value,
+		"valueInMgPerDl", gm.ValueInMgPerDl,
+		"trendArrow", gm.TrendArrow,
+		"measurementColor", gm.MeasurementColor,
+		"timestamp", gm.Timestamp,
+	)
 
 	// Also store/update the sensor
 	sensor := &connectionsResp.Data[0].Sensor
@@ -431,6 +412,7 @@ func (d *Daemon) fetch() error {
 }
 
 // storeCurrentMeasurement stores a current measurement (from /connections).
+// Returns (true, nil) if inserted, (false, nil) if duplicate.
 func (d *Daemon) storeCurrentMeasurement(gm *struct {
 	ValueInMgPerDl   int     `json:"ValueInMgPerDl"`
 	Value            float64 `json:"Value"`
@@ -441,10 +423,10 @@ func (d *Daemon) storeCurrentMeasurement(gm *struct {
 	Timestamp        string  `json:"Timestamp"`
 	IsHigh           bool    `json:"isHigh"`
 	IsLow            bool    `json:"isLow"`
-}) error {
+}) (bool, error) {
 	timestamp, err := timeparser.ParseLibreViewTimestamp(gm.Timestamp)
 	if err != nil {
-		return fmt.Errorf("failed to parse timestamp: %w", err)
+		return false, fmt.Errorf("failed to parse timestamp: %w", err)
 	}
 
 	trendArrow := gm.TrendArrow
@@ -470,8 +452,9 @@ func (d *Daemon) storeCurrentMeasurement(gm *struct {
 	ctx, cancel := context.WithTimeout(d.ctx, 5*time.Second)
 	defer cancel()
 
-	if err := d.glucoseService.SaveMeasurement(ctx, measurement); err != nil {
-		return err
+	inserted, err := d.glucoseService.SaveMeasurement(ctx, measurement)
+	if err != nil {
+		return false, err
 	}
 
 	// Update LastMeasurementAt on the current sensor
@@ -479,10 +462,11 @@ func (d *Daemon) storeCurrentMeasurement(gm *struct {
 		slog.Warn("failed to update sensor LastMeasurementAt", "error", err)
 	}
 
-	return nil
+	return inserted, nil
 }
 
 // storeHistoricalMeasurement stores a historical measurement (from /graph).
+// Returns (true, nil) if inserted, (false, nil) if duplicate.
 func (d *Daemon) storeHistoricalMeasurement(point *struct {
 	FactoryTimestamp string  `json:"FactoryTimestamp"`
 	Timestamp        string  `json:"Timestamp"`
@@ -493,15 +477,15 @@ func (d *Daemon) storeHistoricalMeasurement(point *struct {
 	IsHigh           bool    `json:"isHigh"`
 	IsLow            bool    `json:"isLow"`
 	Type             int     `json:"type"`
-}) error {
+}) (bool, error) {
 	factoryTimestamp, err := timeparser.ParseLibreViewTimestamp(point.FactoryTimestamp)
 	if err != nil {
-		return fmt.Errorf("failed to parse factory timestamp: %w", err)
+		return false, fmt.Errorf("failed to parse factory timestamp: %w", err)
 	}
 
 	timestamp, err := timeparser.ParseLibreViewTimestamp(point.Timestamp)
 	if err != nil {
-		return fmt.Errorf("failed to parse timestamp: %w", err)
+		return false, fmt.Errorf("failed to parse timestamp: %w", err)
 	}
 
 	measurement := &domain.GlucoseMeasurement{
@@ -520,8 +504,9 @@ func (d *Daemon) storeHistoricalMeasurement(point *struct {
 	ctx, cancel := context.WithTimeout(d.ctx, 5*time.Second)
 	defer cancel()
 
-	if err := d.glucoseService.SaveMeasurement(ctx, measurement); err != nil {
-		return err
+	inserted, err := d.glucoseService.SaveMeasurement(ctx, measurement)
+	if err != nil {
+		return false, err
 	}
 
 	// Update LastMeasurementAt on the current sensor
@@ -529,13 +514,15 @@ func (d *Daemon) storeHistoricalMeasurement(point *struct {
 		slog.Warn("failed to update sensor LastMeasurementAt", "error", err)
 	}
 
-	return nil
+	return inserted, nil
 }
 
 // storeSensor stores sensor configuration and handles sensor changes.
 // The sensor change detection logic (setting EndedAt on old sensor)
 // is handled by SensorService.HandleSensorChange() within a transaction.
 func (d *Daemon) storeSensor(sensor *libreclient.SensorData) error {
+	start := time.Now()
+
 	// Convert Unix timestamp to time.Time (sensor.A is activation time)
 	activationTime := time.Unix(int64(sensor.A), 0).UTC()
 
@@ -556,7 +543,20 @@ func (d *Daemon) storeSensor(sensor *libreclient.SensorData) error {
 	defer cancel()
 
 	// HandleSensorChange manages sensor change detection atomically
-	return d.sensorService.HandleSensorChange(ctx, sensorConfig)
+	if err := d.sensorService.HandleSensorChange(ctx, sensorConfig); err != nil {
+		return err
+	}
+
+	// Debug: log all sensor data (same pattern as measurements in fetch())
+	slog.Debug("sensor",
+		"serialNumber", sensor.SN,
+		"activation", sensorConfig.Activation,
+		"expiresAt", sensorConfig.ExpiresAt,
+		"sensorType", sensor.PT,
+		"durationDays", sensorConfig.DurationDays,
+		"duration", time.Since(start),
+	)
+	return nil
 }
 
 // storeTargets extracts glucose targets from a ConnectionsResponse and saves them.
@@ -581,82 +581,6 @@ func (d *Daemon) storeTargets(resp *libreclient.ConnectionsResponse) {
 
 	if err := d.configService.SaveGlucoseTargets(ctx, targets); err != nil {
 		slog.Warn("failed to store glucose targets", "error", err)
-	} else {
-		slog.Debug("glucose targets stored", "targetHigh", data.TargetHigh, "targetLow", data.TargetLow)
 	}
 }
 
-// displayLastMeasurement retrieves and displays the last recorded measurement.
-// This is called every minute by the displayTicker.
-func (d *Daemon) displayLastMeasurement() {
-	ctx, cancel := context.WithTimeout(d.ctx, 5*time.Second)
-	defer cancel()
-
-	measurement, err := d.glucoseService.GetLatestMeasurement(ctx)
-	if err != nil {
-		slog.Warn("no measurement available to display", "error", err)
-		return
-	}
-
-	// Build trend arrow display
-	trendArrowStr := ""
-	if measurement.TrendArrow != nil {
-		if d.config.EnableEmojis {
-			switch *measurement.TrendArrow {
-			case domain.TrendArrowFallingRapidly:
-				trendArrowStr = "⬇️⬇️"
-			case domain.TrendArrowFalling:
-				trendArrowStr = "⬇️"
-			case domain.TrendArrowStable:
-				trendArrowStr = "➡️"
-			case domain.TrendArrowRising:
-				trendArrowStr = "⬆️"
-			case domain.TrendArrowRisingRapidly:
-				trendArrowStr = "⬆️⬆️"
-			}
-		} else {
-			switch *measurement.TrendArrow {
-			case domain.TrendArrowFallingRapidly:
-				trendArrowStr = "Falling rapidly"
-			case domain.TrendArrowFalling:
-				trendArrowStr = "Falling"
-			case domain.TrendArrowStable:
-				trendArrowStr = "Stable"
-			case domain.TrendArrowRising:
-				trendArrowStr = "Rising"
-			case domain.TrendArrowRisingRapidly:
-				trendArrowStr = "Rising rapidly"
-			}
-		}
-	}
-
-	// Build status indicator
-	statusStr := ""
-	if d.config.EnableEmojis {
-		switch measurement.MeasurementColor {
-		case domain.MeasurementColorNormal:
-			statusStr = "🟢 Normal"
-		case domain.MeasurementColorWarning:
-			statusStr = "🟠 Warning"
-		case domain.MeasurementColorCritical:
-			statusStr = "🔴 Critical"
-		}
-	} else {
-		switch measurement.MeasurementColor {
-		case domain.MeasurementColorNormal:
-			statusStr = "Normal"
-		case domain.MeasurementColorWarning:
-			statusStr = "Warning"
-		case domain.MeasurementColorCritical:
-			statusStr = "Critical"
-		}
-	}
-
-	// Log the measurement with all relevant information
-	slog.Info("last measurement",
-		"value", fmt.Sprintf("%.1f mmol/L (%d mg/dL)", measurement.Value, measurement.ValueInMgPerDl),
-		"trend", trendArrowStr,
-		"status", statusStr,
-		"timestamp", measurement.Timestamp.Format("2006-01-02 15:04:05"),
-	)
-}
