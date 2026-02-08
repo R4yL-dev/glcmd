@@ -195,6 +195,14 @@ func (d *Daemon) GetHealthStatus() HealthStatus {
 		status = "degraded"
 	}
 
+	// Check data freshness: fresh if no fetch yet (zero time) or last fetch within 2x interval
+	dataFresh := d.lastFetchTime.IsZero() || time.Since(d.lastFetchTime) < 2*d.config.FetchInterval
+
+	// Degrade status if data is stale (but don't upgrade from unhealthy)
+	if !dataFresh && status == "healthy" {
+		status = "degraded"
+	}
+
 	return HealthStatus{
 		Status:            status,
 		Timestamp:         time.Now(),
@@ -202,6 +210,8 @@ func (d *Daemon) GetHealthStatus() HealthStatus {
 		ConsecutiveErrors: d.consecutiveErrors,
 		LastFetchError:    d.lastFetchError,
 		LastFetchTime:     d.lastFetchTime,
+		DataFresh:         dataFresh,
+		FetchInterval:     d.config.FetchInterval.String(),
 	}
 }
 
@@ -214,7 +224,9 @@ type HealthStatus struct {
 	ConsecutiveErrors int       `json:"consecutiveErrors"`
 	LastFetchError    string    `json:"lastFetchError"`
 	LastFetchTime     time.Time `json:"lastFetchTime"`
-	DatabaseConnected bool      `json:"databaseConnected"` // Database health status
+	DatabaseConnected bool      `json:"databaseConnected"`
+	DataFresh         bool      `json:"dataFresh"`
+	FetchInterval     string    `json:"fetchInterval"`
 }
 
 // Stop initiates a graceful shutdown of the daemon.

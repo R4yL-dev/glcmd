@@ -36,6 +36,14 @@ func TestGetHealthStatus_Healthy(t *testing.T) {
 	if status.Uptime == "" {
 		t.Error("expected non-empty Uptime")
 	}
+
+	if !status.DataFresh {
+		t.Error("expected DataFresh = true")
+	}
+
+	if status.FetchInterval != "5m0s" {
+		t.Errorf("expected FetchInterval = 5m0s, got %s", status.FetchInterval)
+	}
 }
 
 func TestGetHealthStatus_Degraded(t *testing.T) {
@@ -63,6 +71,10 @@ func TestGetHealthStatus_Degraded(t *testing.T) {
 	if status.LastFetchError != "network timeout" {
 		t.Errorf("expected LastFetchError = 'network timeout', got %s", status.LastFetchError)
 	}
+
+	if !status.DataFresh {
+		t.Error("expected DataFresh = true (5m < 2x5m)")
+	}
 }
 
 func TestGetHealthStatus_Unhealthy(t *testing.T) {
@@ -89,6 +101,10 @@ func TestGetHealthStatus_Unhealthy(t *testing.T) {
 
 	if status.LastFetchError == "" {
 		t.Error("expected non-empty LastFetchError")
+	}
+
+	if status.DataFresh {
+		t.Error("expected DataFresh = false (30m > 2x5m)")
 	}
 }
 
@@ -191,13 +207,22 @@ func TestGetHealthStatus_EdgeCaseBoundary(t *testing.T) {
 			if status.Status != tt.expectedStatus {
 				t.Errorf("expected status = %s, got %s", tt.expectedStatus, status.Status)
 			}
+
+			// Zero lastFetchTime should be considered fresh
+			if !status.DataFresh {
+				t.Error("expected DataFresh = true for zero lastFetchTime")
+			}
+
+			if status.FetchInterval != "5m0s" {
+				t.Errorf("expected FetchInterval = 5m0s, got %s", status.FetchInterval)
+			}
 		})
 	}
 }
 
 func TestGetHealthStatus_LastFetchTimePreserved(t *testing.T) {
 	config := DefaultConfig()
-	lastFetch := time.Now().Add(-15 * time.Minute)
+	lastFetch := time.Now().Add(-3 * time.Minute) // Within 2x5m, so still fresh
 	d := &Daemon{
 		config:               config,
 		ctx:                  context.Background(),
@@ -211,5 +236,99 @@ func TestGetHealthStatus_LastFetchTimePreserved(t *testing.T) {
 
 	if !status.LastFetchTime.Equal(lastFetch) {
 		t.Errorf("expected LastFetchTime = %v, got %v", lastFetch, status.LastFetchTime)
+	}
+}
+
+func TestGetHealthStatus_DataFresh(t *testing.T) {
+	config := DefaultConfig() // FetchInterval = 5m
+
+	d := &Daemon{
+		config:               config,
+		ctx:                  context.Background(),
+		consecutiveErrors:    0,
+		maxConsecutiveErrors: 5,
+		lastFetchTime:        time.Now().Add(-3 * time.Minute), // 3m < 2x5m = 10m
+		startTime:            time.Now().Add(-1 * time.Hour),
+	}
+
+	status := d.GetHealthStatus()
+
+	if status.Status != "healthy" {
+		t.Errorf("expected status = healthy, got %s", status.Status)
+	}
+
+	if !status.DataFresh {
+		t.Error("expected DataFresh = true (3m < 10m)")
+	}
+}
+
+func TestGetHealthStatus_DataStale_DegradedFromHealthy(t *testing.T) {
+	config := DefaultConfig() // FetchInterval = 5m
+
+	d := &Daemon{
+		config:               config,
+		ctx:                  context.Background(),
+		consecutiveErrors:    0, // No errors, would be healthy
+		maxConsecutiveErrors: 5,
+		lastFetchTime:        time.Now().Add(-15 * time.Minute), // 15m > 2x5m = 10m
+		startTime:            time.Now().Add(-1 * time.Hour),
+	}
+
+	status := d.GetHealthStatus()
+
+	if status.Status != "degraded" {
+		t.Errorf("expected status = degraded (stale data), got %s", status.Status)
+	}
+
+	if status.DataFresh {
+		t.Error("expected DataFresh = false (15m > 10m)")
+	}
+}
+
+func TestGetHealthStatus_DataStale_RemainsUnhealthy(t *testing.T) {
+	config := DefaultConfig() // FetchInterval = 5m
+
+	d := &Daemon{
+		config:               config,
+		ctx:                  context.Background(),
+		consecutiveErrors:    5, // At max -> unhealthy
+		maxConsecutiveErrors: 5,
+		lastFetchError:       "persistent error",
+		lastFetchTime:        time.Now().Add(-20 * time.Minute), // Also stale
+		startTime:            time.Now().Add(-2 * time.Hour),
+	}
+
+	status := d.GetHealthStatus()
+
+	// Should remain unhealthy, not downgrade to degraded
+	if status.Status != "unhealthy" {
+		t.Errorf("expected status = unhealthy (should not downgrade), got %s", status.Status)
+	}
+
+	if status.DataFresh {
+		t.Error("expected DataFresh = false (20m > 10m)")
+	}
+}
+
+func TestGetHealthStatus_DataFresh_ZeroFetchTime(t *testing.T) {
+	config := DefaultConfig()
+
+	d := &Daemon{
+		config:               config,
+		ctx:                  context.Background(),
+		consecutiveErrors:    0,
+		maxConsecutiveErrors: 5,
+		lastFetchTime:        time.Time{}, // Zero value - no fetch yet
+		startTime:            time.Now(),
+	}
+
+	status := d.GetHealthStatus()
+
+	if status.Status != "healthy" {
+		t.Errorf("expected status = healthy, got %s", status.Status)
+	}
+
+	if !status.DataFresh {
+		t.Error("expected DataFresh = true for zero lastFetchTime (no fetch yet)")
 	}
 }
