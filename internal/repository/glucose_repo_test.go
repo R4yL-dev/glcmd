@@ -9,9 +9,9 @@ import (
 	"github.com/R4yL-dev/glcmd/internal/persistence"
 )
 
-func TestMeasurementRepository_Save(t *testing.T) {
+func TestGlucoseRepository_Save(t *testing.T) {
 	db := setupTestDB(t)
-	repo := NewMeasurementRepository(db)
+	repo := NewGlucoseRepository(db)
 
 	measurement := &domain.GlucoseMeasurement{
 		Timestamp:      time.Now().UTC(),
@@ -35,9 +35,9 @@ func TestMeasurementRepository_Save(t *testing.T) {
 	}
 }
 
-func TestMeasurementRepository_Save_DuplicateTimestamp(t *testing.T) {
+func TestGlucoseRepository_Save_DuplicateTimestamp(t *testing.T) {
 	db := setupTestDB(t)
-	repo := NewMeasurementRepository(db)
+	repo := NewGlucoseRepository(db)
 
 	timestamp := time.Now().UTC()
 
@@ -87,9 +87,9 @@ func TestMeasurementRepository_Save_DuplicateTimestamp(t *testing.T) {
 	}
 }
 
-func TestMeasurementRepository_FindLatest(t *testing.T) {
+func TestGlucoseRepository_FindLatest(t *testing.T) {
 	db := setupTestDB(t)
-	repo := NewMeasurementRepository(db)
+	repo := NewGlucoseRepository(db)
 
 	now := time.Now().UTC()
 
@@ -115,9 +115,9 @@ func TestMeasurementRepository_FindLatest(t *testing.T) {
 	}
 }
 
-func TestMeasurementRepository_FindLatest_NoData(t *testing.T) {
+func TestGlucoseRepository_FindLatest_NoData(t *testing.T) {
 	db := setupTestDB(t)
-	repo := NewMeasurementRepository(db)
+	repo := NewGlucoseRepository(db)
 
 	_, err := repo.FindLatest(context.Background())
 	if err != persistence.ErrNotFound {
@@ -125,9 +125,9 @@ func TestMeasurementRepository_FindLatest_NoData(t *testing.T) {
 	}
 }
 
-func TestMeasurementRepository_FindByTimeRange(t *testing.T) {
+func TestGlucoseRepository_FindByTimeRange(t *testing.T) {
 	db := setupTestDB(t)
-	repo := NewMeasurementRepository(db)
+	repo := NewGlucoseRepository(db)
 
 	now := time.Now().UTC()
 
@@ -166,9 +166,9 @@ func TestMeasurementRepository_FindByTimeRange(t *testing.T) {
 	}
 }
 
-func TestMeasurementRepository_FindByTimeRange_EmptyRange(t *testing.T) {
+func TestGlucoseRepository_FindByTimeRange_EmptyRange(t *testing.T) {
 	db := setupTestDB(t)
-	repo := NewMeasurementRepository(db)
+	repo := NewGlucoseRepository(db)
 
 	now := time.Now().UTC()
 

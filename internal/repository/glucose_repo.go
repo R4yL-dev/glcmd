@@ -12,19 +12,19 @@ import (
 	"github.com/R4yL-dev/glcmd/internal/persistence"
 )
 
-// MeasurementRepositoryGORM is the GORM implementation of MeasurementRepository.
-type MeasurementRepositoryGORM struct {
+// GlucoseRepositoryGORM is the GORM implementation of GlucoseRepository.
+type GlucoseRepositoryGORM struct {
 	db *gorm.DB
 }
 
-// NewMeasurementRepository creates a new MeasurementRepository.
-func NewMeasurementRepository(db *gorm.DB) *MeasurementRepositoryGORM {
-	return &MeasurementRepositoryGORM{db: db}
+// NewGlucoseRepository creates a new GlucoseRepository.
+func NewGlucoseRepository(db *gorm.DB) *GlucoseRepositoryGORM {
+	return &GlucoseRepositoryGORM{db: db}
 }
 
 // Save creates or ignores a measurement (duplicate timestamps are silently ignored).
 // Returns (true, nil) if inserted, (false, nil) if duplicate was ignored.
-func (r *MeasurementRepositoryGORM) Save(ctx context.Context, m *domain.GlucoseMeasurement) (bool, error) {
+func (r *GlucoseRepositoryGORM) Save(ctx context.Context, m *domain.GlucoseMeasurement) (bool, error) {
 	db := txOrDefault(ctx, r.db)
 
 	// ON CONFLICT DO NOTHING - ignore duplicates based on unique timestamp
@@ -39,7 +39,7 @@ func (r *MeasurementRepositoryGORM) Save(ctx context.Context, m *domain.GlucoseM
 }
 
 // FindLatest returns the most recent measurement by timestamp.
-func (r *MeasurementRepositoryGORM) FindLatest(ctx context.Context) (*domain.GlucoseMeasurement, error) {
+func (r *GlucoseRepositoryGORM) FindLatest(ctx context.Context) (*domain.GlucoseMeasurement, error) {
 	db := txOrDefault(ctx, r.db)
 
 	var measurement domain.GlucoseMeasurement
@@ -56,7 +56,7 @@ func (r *MeasurementRepositoryGORM) FindLatest(ctx context.Context) (*domain.Glu
 }
 
 // FindAll returns all measurements ordered by timestamp descending.
-func (r *MeasurementRepositoryGORM) FindAll(ctx context.Context) ([]*domain.GlucoseMeasurement, error) {
+func (r *GlucoseRepositoryGORM) FindAll(ctx context.Context) ([]*domain.GlucoseMeasurement, error) {
 	db := txOrDefault(ctx, r.db)
 
 	var measurements []*domain.GlucoseMeasurement
@@ -70,7 +70,7 @@ func (r *MeasurementRepositoryGORM) FindAll(ctx context.Context) ([]*domain.Gluc
 }
 
 // FindByTimeRange returns measurements within a time range (inclusive).
-func (r *MeasurementRepositoryGORM) FindByTimeRange(ctx context.Context, start, end time.Time) ([]*domain.GlucoseMeasurement, error) {
+func (r *GlucoseRepositoryGORM) FindByTimeRange(ctx context.Context, start, end time.Time) ([]*domain.GlucoseMeasurement, error) {
 	db := txOrDefault(ctx, r.db)
 
 	var measurements []*domain.GlucoseMeasurement
@@ -87,7 +87,7 @@ func (r *MeasurementRepositoryGORM) FindByTimeRange(ctx context.Context, start, 
 }
 
 // FindWithFilters returns measurements matching filters with pagination.
-func (r *MeasurementRepositoryGORM) FindWithFilters(ctx context.Context, filters MeasurementFilters, limit, offset int) ([]*domain.GlucoseMeasurement, error) {
+func (r *GlucoseRepositoryGORM) FindWithFilters(ctx context.Context, filters GlucoseFilters, limit, offset int) ([]*domain.GlucoseMeasurement, error) {
 	db := txOrDefault(ctx, r.db)
 
 	query := db.Model(&domain.GlucoseMeasurement{})
@@ -121,7 +121,7 @@ func (r *MeasurementRepositoryGORM) FindWithFilters(ctx context.Context, filters
 }
 
 // CountWithFilters returns total count of measurements matching filters.
-func (r *MeasurementRepositoryGORM) CountWithFilters(ctx context.Context, filters MeasurementFilters) (int64, error) {
+func (r *GlucoseRepositoryGORM) CountWithFilters(ctx context.Context, filters GlucoseFilters) (int64, error) {
 	db := txOrDefault(ctx, r.db)
 
 	query := db.Model(&domain.GlucoseMeasurement{})
@@ -197,7 +197,7 @@ type statisticsRawResult struct {
 }
 
 // GetStatistics returns aggregated statistics computed by SQL.
-func (r *MeasurementRepositoryGORM) GetStatistics(ctx context.Context, filters StatisticsFilters) (*StatisticsResult, error) {
+func (r *GlucoseRepositoryGORM) GetStatistics(ctx context.Context, filters GlucoseStatisticsFilters) (*GlucoseStatisticsResult, error) {
 	db := txOrDefault(ctx, r.db)
 
 	// Base aggregation query
@@ -255,7 +255,7 @@ func (r *MeasurementRepositoryGORM) GetStatistics(ctx context.Context, filters S
 	}
 
 	// Convert to result with parsed timestamps
-	result := &StatisticsResult{
+	result := &GlucoseStatisticsResult{
 		Count:           raw.Count,
 		Average:         raw.Average,
 		AverageMgDl:     raw.AverageMgDl,

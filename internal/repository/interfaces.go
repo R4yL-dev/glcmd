@@ -7,24 +7,24 @@ import (
 	"github.com/R4yL-dev/glcmd/internal/domain"
 )
 
-// MeasurementFilters defines filter criteria for querying measurements
-type MeasurementFilters struct {
+// GlucoseFilters defines filter criteria for querying glucose measurements
+type GlucoseFilters struct {
 	StartTime *time.Time
 	EndTime   *time.Time
 	Color     *int // 1=normal, 2=warning, 3=critical
 	Type      *int // 0=historical, 1=current
 }
 
-// StatisticsFilters defines filter criteria for aggregated statistics
-type StatisticsFilters struct {
+// GlucoseStatisticsFilters defines filter criteria for aggregated glucose statistics
+type GlucoseStatisticsFilters struct {
 	StartTime      *time.Time // nil = no lower bound
 	EndTime        *time.Time // nil = no upper bound
 	TargetLowMgDl  *int       // For Time in Range calculation
 	TargetHighMgDl *int       // For Time in Range calculation
 }
 
-// StatisticsResult contains aggregated statistics computed by SQL
-type StatisticsResult struct {
+// GlucoseStatisticsResult contains aggregated glucose statistics computed by SQL
+type GlucoseStatisticsResult struct {
 	Count           int64
 	Average         float64
 	AverageMgDl     float64
@@ -43,8 +43,8 @@ type StatisticsResult struct {
 	LastTimestamp   *time.Time // Newest measurement timestamp
 }
 
-// MeasurementRepository defines the interface for glucose measurement persistence.
-type MeasurementRepository interface {
+// GlucoseRepository defines the interface for glucose measurement persistence.
+type GlucoseRepository interface {
 	// Save creates or ignores a measurement (duplicate timestamps are silently ignored).
 	// Returns (true, nil) if inserted, (false, nil) if duplicate was ignored.
 	Save(ctx context.Context, m *domain.GlucoseMeasurement) (inserted bool, err error)
@@ -59,18 +59,24 @@ type MeasurementRepository interface {
 	FindByTimeRange(ctx context.Context, start, end time.Time) ([]*domain.GlucoseMeasurement, error)
 
 	// FindWithFilters returns measurements matching filters with pagination
-	FindWithFilters(ctx context.Context, filters MeasurementFilters, limit, offset int) ([]*domain.GlucoseMeasurement, error)
+	FindWithFilters(ctx context.Context, filters GlucoseFilters, limit, offset int) ([]*domain.GlucoseMeasurement, error)
 
 	// CountWithFilters returns total count of measurements matching filters
-	CountWithFilters(ctx context.Context, filters MeasurementFilters) (int64, error)
+	CountWithFilters(ctx context.Context, filters GlucoseFilters) (int64, error)
 
 	// GetStatistics returns aggregated statistics computed by SQL
-	GetStatistics(ctx context.Context, filters StatisticsFilters) (*StatisticsResult, error)
+	GetStatistics(ctx context.Context, filters GlucoseStatisticsFilters) (*GlucoseStatisticsResult, error)
 }
 
 // SensorFilters defines filter criteria for querying sensors
 type SensorFilters struct {
 	StartTime *time.Time // filter on activation
+	EndTime   *time.Time
+}
+
+// SensorStatisticsFilters defines filter criteria for sensor statistics
+type SensorStatisticsFilters struct {
+	StartTime *time.Time
 	EndTime   *time.Time
 }
 
@@ -105,7 +111,7 @@ type SensorRepository interface {
 	CountWithFilters(ctx context.Context, filters SensorFilters) (int64, error)
 
 	// GetStatistics returns aggregated sensor lifecycle statistics computed by SQL
-	GetStatistics(ctx context.Context) (*SensorStatisticsResult, error)
+	GetStatistics(ctx context.Context, filters SensorStatisticsFilters) (*SensorStatisticsResult, error)
 
 	// SetEndedAt marks a sensor as ended (replaced by a new sensor)
 	SetEndedAt(ctx context.Context, serial string, endedAt time.Time) error

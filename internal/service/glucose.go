@@ -34,14 +34,14 @@ type MeasurementStats struct {
 
 // GlucoseServiceImpl implements GlucoseService.
 type GlucoseServiceImpl struct {
-	repo   repository.MeasurementRepository
+	repo   repository.GlucoseRepository
 	retry  *persistence.RetryConfig
 	logger *slog.Logger
 }
 
 // NewGlucoseService creates a new GlucoseService.
 func NewGlucoseService(
-	repo repository.MeasurementRepository,
+	repo repository.GlucoseRepository,
 	logger *slog.Logger,
 ) *GlucoseServiceImpl {
 	return &GlucoseServiceImpl{
@@ -95,7 +95,7 @@ func (s *GlucoseServiceImpl) GetMeasurementsByTimeRange(ctx context.Context, sta
 }
 
 // GetMeasurementsWithFilters returns filtered and paginated measurements with total count.
-func (s *GlucoseServiceImpl) GetMeasurementsWithFilters(ctx context.Context, filters repository.MeasurementFilters, limit, offset int) ([]*domain.GlucoseMeasurement, int64, error) {
+func (s *GlucoseServiceImpl) GetMeasurementsWithFilters(ctx context.Context, filters repository.GlucoseFilters, limit, offset int) ([]*domain.GlucoseMeasurement, int64, error) {
 	// Get measurements
 	measurements, err := s.repo.FindWithFilters(ctx, filters, limit, offset)
 	if err != nil {
@@ -114,7 +114,7 @@ func (s *GlucoseServiceImpl) GetMeasurementsWithFilters(ctx context.Context, fil
 // GetStatistics calculates aggregated statistics for a time range.
 // If start and end are nil, returns statistics for all data (all time).
 func (s *GlucoseServiceImpl) GetStatistics(ctx context.Context, start, end *time.Time, targets *domain.GlucoseTargets) (*MeasurementStats, error) {
-	filters := repository.StatisticsFilters{
+	filters := repository.GlucoseStatisticsFilters{
 		StartTime: start,
 		EndTime:   end,
 	}

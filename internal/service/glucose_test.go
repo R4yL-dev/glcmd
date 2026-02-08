@@ -12,70 +12,70 @@ import (
 	"github.com/R4yL-dev/glcmd/internal/repository"
 )
 
-// MockMeasurementRepository for testing
-type MockMeasurementRepository struct {
+// MockGlucoseRepository for testing
+type MockGlucoseRepository struct {
 	SaveFunc             func(ctx context.Context, m *domain.GlucoseMeasurement) (bool, error)
 	FindLatestFunc       func(ctx context.Context) (*domain.GlucoseMeasurement, error)
 	FindAllFunc          func(ctx context.Context) ([]*domain.GlucoseMeasurement, error)
 	FindByTimeRangeFunc  func(ctx context.Context, start, end time.Time) ([]*domain.GlucoseMeasurement, error)
-	FindWithFiltersFunc  func(ctx context.Context, filters repository.MeasurementFilters, limit, offset int) ([]*domain.GlucoseMeasurement, error)
-	CountWithFiltersFunc func(ctx context.Context, filters repository.MeasurementFilters) (int64, error)
-	GetStatisticsFunc    func(ctx context.Context, filters repository.StatisticsFilters) (*repository.StatisticsResult, error)
+	FindWithFiltersFunc  func(ctx context.Context, filters repository.GlucoseFilters, limit, offset int) ([]*domain.GlucoseMeasurement, error)
+	CountWithFiltersFunc func(ctx context.Context, filters repository.GlucoseFilters) (int64, error)
+	GetStatisticsFunc    func(ctx context.Context, filters repository.GlucoseStatisticsFilters) (*repository.GlucoseStatisticsResult, error)
 }
 
-func (m *MockMeasurementRepository) Save(ctx context.Context, measurement *domain.GlucoseMeasurement) (bool, error) {
+func (m *MockGlucoseRepository) Save(ctx context.Context, measurement *domain.GlucoseMeasurement) (bool, error) {
 	if m.SaveFunc != nil {
 		return m.SaveFunc(ctx, measurement)
 	}
 	return true, nil
 }
 
-func (m *MockMeasurementRepository) FindLatest(ctx context.Context) (*domain.GlucoseMeasurement, error) {
+func (m *MockGlucoseRepository) FindLatest(ctx context.Context) (*domain.GlucoseMeasurement, error) {
 	if m.FindLatestFunc != nil {
 		return m.FindLatestFunc(ctx)
 	}
 	return nil, persistence.ErrNotFound
 }
 
-func (m *MockMeasurementRepository) FindAll(ctx context.Context) ([]*domain.GlucoseMeasurement, error) {
+func (m *MockGlucoseRepository) FindAll(ctx context.Context) ([]*domain.GlucoseMeasurement, error) {
 	if m.FindAllFunc != nil {
 		return m.FindAllFunc(ctx)
 	}
 	return []*domain.GlucoseMeasurement{}, nil
 }
 
-func (m *MockMeasurementRepository) FindByTimeRange(ctx context.Context, start, end time.Time) ([]*domain.GlucoseMeasurement, error) {
+func (m *MockGlucoseRepository) FindByTimeRange(ctx context.Context, start, end time.Time) ([]*domain.GlucoseMeasurement, error) {
 	if m.FindByTimeRangeFunc != nil {
 		return m.FindByTimeRangeFunc(ctx, start, end)
 	}
 	return []*domain.GlucoseMeasurement{}, nil
 }
 
-func (m *MockMeasurementRepository) FindWithFilters(ctx context.Context, filters repository.MeasurementFilters, limit, offset int) ([]*domain.GlucoseMeasurement, error) {
+func (m *MockGlucoseRepository) FindWithFilters(ctx context.Context, filters repository.GlucoseFilters, limit, offset int) ([]*domain.GlucoseMeasurement, error) {
 	if m.FindWithFiltersFunc != nil {
 		return m.FindWithFiltersFunc(ctx, filters, limit, offset)
 	}
 	return []*domain.GlucoseMeasurement{}, nil
 }
 
-func (m *MockMeasurementRepository) CountWithFilters(ctx context.Context, filters repository.MeasurementFilters) (int64, error) {
+func (m *MockGlucoseRepository) CountWithFilters(ctx context.Context, filters repository.GlucoseFilters) (int64, error) {
 	if m.CountWithFiltersFunc != nil {
 		return m.CountWithFiltersFunc(ctx, filters)
 	}
 	return 0, nil
 }
 
-func (m *MockMeasurementRepository) GetStatistics(ctx context.Context, filters repository.StatisticsFilters) (*repository.StatisticsResult, error) {
+func (m *MockGlucoseRepository) GetStatistics(ctx context.Context, filters repository.GlucoseStatisticsFilters) (*repository.GlucoseStatisticsResult, error) {
 	if m.GetStatisticsFunc != nil {
 		return m.GetStatisticsFunc(ctx, filters)
 	}
-	return &repository.StatisticsResult{}, nil
+	return &repository.GlucoseStatisticsResult{}, nil
 }
 
 func TestGlucoseService_SaveMeasurement_Success(t *testing.T) {
 	saveCalled := false
 
-	mockRepo := &MockMeasurementRepository{
+	mockRepo := &MockGlucoseRepository{
 		SaveFunc: func(ctx context.Context, m *domain.GlucoseMeasurement) (bool, error) {
 			saveCalled = true
 			if m.Value != 7.5 {
@@ -91,7 +91,7 @@ func TestGlucoseService_SaveMeasurement_Success(t *testing.T) {
 		Timestamp:      time.Now(),
 		Value:          7.5,
 		ValueInMgPerDl: 135,
-		Type:           domain.MeasurementTypeCurrent,
+		Type:           domain.GlucoseTypeCurrent,
 	}
 
 	inserted, err := service.SaveMeasurement(context.Background(), measurement)
@@ -111,7 +111,7 @@ func TestGlucoseService_SaveMeasurement_Success(t *testing.T) {
 func TestGlucoseService_SaveMeasurement_RetryOnTransientError(t *testing.T) {
 	attemptCount := 0
 
-	mockRepo := &MockMeasurementRepository{
+	mockRepo := &MockGlucoseRepository{
 		SaveFunc: func(ctx context.Context, m *domain.GlucoseMeasurement) (bool, error) {
 			attemptCount++
 			// Fail first attempt, succeed on second
@@ -128,7 +128,7 @@ func TestGlucoseService_SaveMeasurement_RetryOnTransientError(t *testing.T) {
 	measurement := &domain.GlucoseMeasurement{
 		Timestamp: time.Now(),
 		Value:     6.2,
-		Type:      domain.MeasurementTypeCurrent,
+		Type:      domain.GlucoseTypeCurrent,
 	}
 
 	_, err := service.SaveMeasurement(context.Background(), measurement)
@@ -145,7 +145,7 @@ func TestGlucoseService_SaveMeasurement_RetryOnTransientError(t *testing.T) {
 func TestGlucoseService_SaveMeasurement_FailureAfterRetries(t *testing.T) {
 	persistentError := errors.New("persistent database error")
 
-	mockRepo := &MockMeasurementRepository{
+	mockRepo := &MockGlucoseRepository{
 		SaveFunc: func(ctx context.Context, m *domain.GlucoseMeasurement) (bool, error) {
 			// Always fail
 			return false, persistentError
@@ -157,7 +157,7 @@ func TestGlucoseService_SaveMeasurement_FailureAfterRetries(t *testing.T) {
 	measurement := &domain.GlucoseMeasurement{
 		Timestamp: time.Now(),
 		Value:     5.0,
-		Type:      domain.MeasurementTypeCurrent,
+		Type:      domain.GlucoseTypeCurrent,
 	}
 
 	_, err := service.SaveMeasurement(context.Background(), measurement)
@@ -172,10 +172,10 @@ func TestGlucoseService_GetLatestMeasurement_Success(t *testing.T) {
 		Timestamp:      time.Now(),
 		Value:          8.5,
 		ValueInMgPerDl: 153,
-		Type:           domain.MeasurementTypeCurrent,
+		Type:           domain.GlucoseTypeCurrent,
 	}
 
-	mockRepo := &MockMeasurementRepository{
+	mockRepo := &MockGlucoseRepository{
 		FindLatestFunc: func(ctx context.Context) (*domain.GlucoseMeasurement, error) {
 			return expectedMeasurement, nil
 		},
@@ -202,7 +202,7 @@ func TestGlucoseService_GetLatestMeasurement_Success(t *testing.T) {
 }
 
 func TestGlucoseService_GetLatestMeasurement_NotFound(t *testing.T) {
-	mockRepo := &MockMeasurementRepository{
+	mockRepo := &MockGlucoseRepository{
 		FindLatestFunc: func(ctx context.Context) (*domain.GlucoseMeasurement, error) {
 			return nil, persistence.ErrNotFound
 		},
@@ -231,7 +231,7 @@ func TestGlucoseService_GetAllMeasurements_Success(t *testing.T) {
 		{ID: 3, Value: 8.0, Timestamp: time.Now()},
 	}
 
-	mockRepo := &MockMeasurementRepository{
+	mockRepo := &MockGlucoseRepository{
 		FindAllFunc: func(ctx context.Context) ([]*domain.GlucoseMeasurement, error) {
 			return expectedMeasurements, nil
 		},
@@ -250,7 +250,7 @@ func TestGlucoseService_GetAllMeasurements_Success(t *testing.T) {
 }
 
 func TestGlucoseService_GetAllMeasurements_Empty(t *testing.T) {
-	mockRepo := &MockMeasurementRepository{
+	mockRepo := &MockGlucoseRepository{
 		FindAllFunc: func(ctx context.Context) ([]*domain.GlucoseMeasurement, error) {
 			return []*domain.GlucoseMeasurement{}, nil
 		},
@@ -278,7 +278,7 @@ func TestGlucoseService_GetMeasurementsByTimeRange_Success(t *testing.T) {
 		{ID: 3, Value: 7.5, Timestamp: start.Add(12 * time.Hour)},
 	}
 
-	mockRepo := &MockMeasurementRepository{
+	mockRepo := &MockGlucoseRepository{
 		FindByTimeRangeFunc: func(ctx context.Context, s, e time.Time) ([]*domain.GlucoseMeasurement, error) {
 			// Verify correct time range passed
 			if !s.Equal(start) {
@@ -307,7 +307,7 @@ func TestGlucoseService_GetMeasurementsByTimeRange_Empty(t *testing.T) {
 	start := time.Now().Add(-1 * time.Hour)
 	end := time.Now()
 
-	mockRepo := &MockMeasurementRepository{
+	mockRepo := &MockGlucoseRepository{
 		FindByTimeRangeFunc: func(ctx context.Context, s, e time.Time) ([]*domain.GlucoseMeasurement, error) {
 			// No measurements in range
 			return []*domain.GlucoseMeasurement{}, nil
@@ -327,10 +327,10 @@ func TestGlucoseService_GetMeasurementsByTimeRange_Empty(t *testing.T) {
 }
 
 func TestGlucoseService_SaveMeasurement_ValidatesType(t *testing.T) {
-	mockRepo := &MockMeasurementRepository{
+	mockRepo := &MockGlucoseRepository{
 		SaveFunc: func(ctx context.Context, m *domain.GlucoseMeasurement) (bool, error) {
 			// Verify measurement type is valid
-			if m.Type != domain.MeasurementTypeCurrent && m.Type != domain.MeasurementTypeHistorical {
+			if m.Type != domain.GlucoseTypeCurrent && m.Type != domain.GlucoseTypeHistorical {
 				t.Errorf("invalid measurement type: %d", m.Type)
 			}
 			return true, nil
@@ -343,8 +343,8 @@ func TestGlucoseService_SaveMeasurement_ValidatesType(t *testing.T) {
 		name string
 		typ  int
 	}{
-		{"Current measurement", domain.MeasurementTypeCurrent},
-		{"Historical measurement", domain.MeasurementTypeHistorical},
+		{"Current measurement", domain.GlucoseTypeCurrent},
+		{"Historical measurement", domain.GlucoseTypeHistorical},
 	}
 
 	for _, tt := range tests {

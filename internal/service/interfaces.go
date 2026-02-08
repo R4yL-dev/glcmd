@@ -24,7 +24,7 @@ type GlucoseService interface {
 	GetMeasurementsByTimeRange(ctx context.Context, start, end time.Time) ([]*domain.GlucoseMeasurement, error)
 
 	// GetMeasurementsWithFilters returns filtered and paginated measurements with total count
-	GetMeasurementsWithFilters(ctx context.Context, filters repository.MeasurementFilters, limit, offset int) ([]*domain.GlucoseMeasurement, int64, error)
+	GetMeasurementsWithFilters(ctx context.Context, filters repository.GlucoseFilters, limit, offset int) ([]*domain.GlucoseMeasurement, int64, error)
 
 	// GetStatistics calculates aggregated statistics for a time range.
 	// If start and end are nil, returns statistics for all data (all time).
@@ -57,7 +57,7 @@ type SensorService interface {
 	GetSensorsWithFilters(ctx context.Context, filters repository.SensorFilters, limit, offset int) ([]*domain.SensorConfig, int64, error)
 
 	// GetStatistics returns aggregated sensor lifecycle statistics
-	GetStatistics(ctx context.Context) (*SensorStats, error)
+	GetStatistics(ctx context.Context, start, end *time.Time) (*SensorStats, error)
 }
 
 // ConfigService defines the interface for configuration management (user, device, targets).

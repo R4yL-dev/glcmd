@@ -2,17 +2,17 @@ package domain
 
 import "time"
 
-// Measurement type constants
+// Glucose type constants
 const (
-	MeasurementTypeHistorical = 0 // Historical measurement from /graph endpoint
-	MeasurementTypeCurrent    = 1 // Current measurement from /connections endpoint
+	GlucoseTypeHistorical = 0 // Historical measurement from /graph endpoint
+	GlucoseTypeCurrent    = 1 // Current measurement from /connections endpoint
 )
 
-// MeasurementColor constants
+// GlucoseColor constants
 const (
-	MeasurementColorNormal   = 1 // 🟢 Normal glucose levels
-	MeasurementColorWarning  = 2 // 🟠 Warning - outside target range
-	MeasurementColorCritical = 3 // 🔴 Critical - dangerous levels
+	GlucoseColorNormal   = 1 // 🟢 Normal glucose levels
+	GlucoseColorWarning  = 2 // 🟠 Warning - outside target range
+	GlucoseColorCritical = 3 // 🔴 Critical - dangerous levels
 )
 
 // TrendArrow constants
@@ -55,7 +55,7 @@ type GlucoseMeasurement struct {
 	TrendMessage *string `gorm:"type:text" json:"trendMessage,omitempty"`      // Textual trend message (rarely used)
 
 	// Status indicators
-	MeasurementColor int  `gorm:"type:integer;not null;index:idx_color" json:"measurementColor"` // 1=🟢 normal, 2=🟠 warning, 3=🔴 critical
+	GlucoseColor int  `gorm:"type:integer;not null;index:idx_color;column:measurement_color" json:"measurementColor"` // 1=🟢 normal, 2=🟠 warning, 3=🔴 critical
 	GlucoseUnits     int  `gorm:"type:integer;not null" json:"glucoseUnits"`                     // 0=mmol/L, 1=mg/dL
 	IsHigh           bool `gorm:"type:boolean;not null;default:false" json:"isHigh"`             // Above high threshold
 	IsLow            bool `gorm:"type:boolean;not null;default:false" json:"isLow"`              // Below low threshold

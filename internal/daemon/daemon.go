@@ -443,11 +443,11 @@ func (d *Daemon) storeCurrentMeasurement(gm *struct {
 		ValueInMgPerDl:   gm.ValueInMgPerDl,
 		TrendArrow:       &trendArrow,
 		TrendMessage:     trendMessage,
-		MeasurementColor: gm.MeasurementColor,
+		GlucoseColor:     gm.MeasurementColor,
 		GlucoseUnits:     gm.GlucoseUnits,
 		IsHigh:           gm.IsHigh,
 		IsLow:            gm.IsLow,
-		Type:             domain.MeasurementTypeCurrent,
+		Type:             domain.GlucoseTypeCurrent,
 	}
 
 	ctx, cancel := context.WithTimeout(d.ctx, 5*time.Second)
@@ -495,7 +495,7 @@ func (d *Daemon) storeHistoricalMeasurement(point *struct {
 		Value:            point.Value,
 		ValueInMgPerDl:   point.ValueInMgPerDl,
 		TrendArrow:       nil, // Historical data has no trend arrow
-		MeasurementColor: point.MeasurementColor,
+		GlucoseColor:     point.MeasurementColor,
 		GlucoseUnits:     point.GlucoseUnits,
 		IsHigh:           point.IsHigh,
 		IsLow:            point.IsLow,

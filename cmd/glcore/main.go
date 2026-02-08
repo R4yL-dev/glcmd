@@ -104,7 +104,7 @@ func main() {
 	)
 
 	// Create repositories
-	measurementRepo := repository.NewMeasurementRepository(database.DB())
+	glucoseRepo := repository.NewGlucoseRepository(database.DB())
 	sensorRepo := repository.NewSensorRepository(database.DB())
 	userRepo := repository.NewUserRepository(database.DB())
 	deviceRepo := repository.NewDeviceRepository(database.DB())
@@ -114,7 +114,7 @@ func main() {
 	uow := repository.NewUnitOfWork(database.DB())
 
 	// Create services
-	glucoseService := service.NewGlucoseService(measurementRepo, slog.Default())
+	glucoseService := service.NewGlucoseService(glucoseRepo, slog.Default())
 	sensorService := service.NewSensorService(sensorRepo, uow, slog.Default())
 	configService := service.NewConfigService(userRepo, deviceRepo, targetsRepo, slog.Default())
 
