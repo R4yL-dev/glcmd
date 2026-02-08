@@ -48,11 +48,7 @@ type SensorInfo struct {
 	DaysRemaining     *float64 `json:"daysRemaining,omitempty"`
 	DaysElapsed       float64  `json:"daysElapsed"`
 	ActualDays        *float64 `json:"actualDays,omitempty"`
-	DaysPastExpiry    *float64 `json:"daysPastExpiry,omitempty"`
-	IsActive          bool     `json:"isActive"`
 	Status            string   `json:"status"`
-	IsExpired         bool     `json:"isExpired"`
-	IsUnresponsive    bool     `json:"isUnresponsive"`
 }
 
 // GetLatestGlucose fetches the latest glucose reading

@@ -143,7 +143,7 @@ func (r *SensorRepositoryGORM) GetStatistics(ctx context.Context, filters Sensor
 
 	selectClause := `
 		COUNT(*) as total_sensors,
-		COALESCE(SUM(CASE WHEN ended_at IS NOT NULL THEN 1 ELSE 0 END), 0) as ended_sensors,
+		COALESCE(SUM(CASE WHEN ended_at IS NOT NULL THEN 1 ELSE 0 END), 0) as completed_sensors,
 		COALESCE(AVG(CASE WHEN ended_at IS NOT NULL
 			THEN (julianday(ended_at) - julianday(activation)) END), 0) as avg_duration,
 		COALESCE(MIN(CASE WHEN ended_at IS NOT NULL

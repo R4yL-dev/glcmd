@@ -94,11 +94,7 @@ type SensorResponse struct {
 	DaysRemaining     *float64 `json:"daysRemaining,omitempty"`
 	DaysElapsed       float64  `json:"daysElapsed"`
 	ActualDays        *float64 `json:"actualDays,omitempty"`
-	DaysPastExpiry    *float64 `json:"daysPastExpiry,omitempty"`
-	IsActive          bool     `json:"isActive"`
 	Status            string   `json:"status"`
-	IsExpired         bool     `json:"isExpired"`
-	IsUnresponsive    bool     `json:"isUnresponsive"`
 }
 
 // SensorListResponse represents a paginated list of sensors
@@ -127,16 +123,13 @@ type SensorStatisticsData struct {
 // NewSensorResponse creates a SensorResponse from a domain.SensorConfig
 func NewSensorResponse(s *domain.SensorConfig) *SensorResponse {
 	resp := &SensorResponse{
-		SerialNumber:   s.SerialNumber,
-		Activation:     s.Activation.Format("2006-01-02T15:04:05Z"),
-		ExpiresAt:      s.ExpiresAt.Format("2006-01-02T15:04:05Z"),
-		SensorType:     s.SensorType,
-		DurationDays:   s.DurationDays,
-		DaysElapsed:    s.ElapsedDays(),
-		IsActive:       s.IsActive(),
-		Status:         string(s.Status()),
-		IsExpired:      s.IsExpired(),
-		IsUnresponsive: s.IsUnresponsive(),
+		SerialNumber: s.SerialNumber,
+		Activation:   s.Activation.Format("2006-01-02T15:04:05Z"),
+		ExpiresAt:    s.ExpiresAt.Format("2006-01-02T15:04:05Z"),
+		SensorType:   s.SensorType,
+		DurationDays: s.DurationDays,
+		DaysElapsed:  s.ElapsedDays(),
+		Status:       string(s.Status()),
 	}
 
 	if s.EndedAt != nil {
@@ -151,12 +144,6 @@ func NewSensorResponse(s *domain.SensorConfig) *SensorResponse {
 	if s.LastMeasurementAt != nil {
 		lastMeasurementAtStr := s.LastMeasurementAt.Format("2006-01-02T15:04:05Z")
 		resp.LastMeasurementAt = &lastMeasurementAtStr
-	}
-
-	// Add days past expiry if sensor is expired
-	if s.IsExpired() {
-		daysPast := s.DaysPastExpiry()
-		resp.DaysPastExpiry = &daysPast
 	}
 
 	return resp

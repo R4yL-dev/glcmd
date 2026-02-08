@@ -140,7 +140,7 @@ func (s *SensorServiceImpl) HandleSensorChange(ctx context.Context, newSensor *d
 // SensorStats contains aggregated sensor lifecycle statistics
 type SensorStats struct {
 	TotalSensors  int     `json:"totalSensors"`
-	EndedSensors  int     `json:"endedSensors"`
+	CompletedSensors  int     `json:"completedSensors"`
 	AvgDuration   float64 `json:"avgDuration"`   // days
 	MinDuration   float64 `json:"minDuration"`
 	MaxDuration   float64 `json:"maxDuration"`
@@ -176,7 +176,7 @@ func (s *SensorServiceImpl) GetStatistics(ctx context.Context, start, end *time.
 
 	stats := &SensorStats{
 		TotalSensors:  int(result.TotalSensors),
-		EndedSensors:  int(result.EndedSensors),
+		CompletedSensors:  int(result.CompletedSensors),
 		AvgDuration:   result.AvgDuration,
 		MinDuration:   result.MinDuration,
 		MaxDuration:   result.MaxDuration,

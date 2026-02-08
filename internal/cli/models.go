@@ -106,7 +106,7 @@ type SensorStatisticsData struct {
 // SensorStatsDetails contains detailed sensor lifecycle statistics
 type SensorStatsDetails struct {
 	TotalSensors  int     `json:"totalSensors"`
-	EndedSensors  int     `json:"endedSensors"`
+	CompletedSensors int  `json:"completedSensors"`
 	AvgDuration   float64 `json:"avgDuration"`
 	MinDuration   float64 `json:"minDuration"`
 	MaxDuration   float64 `json:"maxDuration"`

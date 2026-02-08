@@ -8,10 +8,8 @@ type SensorStatus string
 const (
 	// SensorStatusRunning indicates the sensor is active and within its lifetime.
 	SensorStatusRunning SensorStatus = "running"
-	// SensorStatusExpired indicates the sensor has expired but hasn't been replaced yet.
-	SensorStatusExpired SensorStatus = "expired"
-	// SensorStatusEnded indicates the sensor has been replaced by a new one.
-	SensorStatusEnded SensorStatus = "ended"
+	// SensorStatusStopped indicates the sensor is no longer active (replaced or expired).
+	SensorStatusStopped SensorStatus = "stopped"
 	// SensorStatusUnresponsive indicates the sensor is not sending data (no measurement for > 20 min).
 	SensorStatusUnresponsive SensorStatus = "unresponsive"
 )
@@ -76,10 +74,13 @@ func (s *SensorConfig) RemainingDays() float64 {
 }
 
 // ElapsedDays returns the number of days since the sensor was activated.
+// For stopped sensors, this is bounded by EndedAt or ExpiresAt.
 func (s *SensorConfig) ElapsedDays() float64 {
 	end := time.Now()
 	if s.EndedAt != nil {
 		end = *s.EndedAt
+	} else if end.After(s.ExpiresAt) {
+		end = s.ExpiresAt
 	}
 	return end.Sub(s.Activation).Hours() / 24
 }
@@ -95,45 +96,18 @@ func (s *SensorConfig) ActualDays() *float64 {
 }
 
 // Status returns the current operational status of the sensor.
-// Priority order: ended > expired > unresponsive > running
-//   - "ended": Sensor has been replaced by a new one
-//   - "expired": Sensor has expired but hasn't been replaced yet
-//   - "unresponsive": Sensor is not sending data (no measurement for > 20 min)
+//   - "stopped": Sensor has been replaced (EndedAt set) or expired (now > ExpiresAt)
+//   - "unresponsive": Sensor is active but not sending data (no measurement for > 20 min)
 //   - "running": Sensor is active and within its lifetime
 func (s *SensorConfig) Status() SensorStatus {
 	if s.EndedAt != nil {
-		return SensorStatusEnded
+		return SensorStatusStopped
 	}
 	if time.Now().After(s.ExpiresAt) {
-		return SensorStatusExpired
+		return SensorStatusStopped
 	}
 	if s.LastMeasurementAt != nil && time.Since(*s.LastMeasurementAt) > UnresponsiveThreshold {
 		return SensorStatusUnresponsive
 	}
 	return SensorStatusRunning
-}
-
-// IsExpired returns true if the sensor has expired but hasn't been replaced yet.
-func (s *SensorConfig) IsExpired() bool {
-	return s.EndedAt == nil && time.Now().After(s.ExpiresAt)
-}
-
-// IsRunning returns true if the sensor is active and within its lifetime.
-func (s *SensorConfig) IsRunning() bool {
-	return s.EndedAt == nil && !time.Now().After(s.ExpiresAt)
-}
-
-// IsUnresponsive returns true if the sensor has not sent data for more than UnresponsiveThreshold.
-func (s *SensorConfig) IsUnresponsive() bool {
-	return s.EndedAt == nil && !time.Now().After(s.ExpiresAt) &&
-		s.LastMeasurementAt != nil && time.Since(*s.LastMeasurementAt) > UnresponsiveThreshold
-}
-
-// DaysPastExpiry returns the number of days past the expected lifetime.
-// Returns 0 if the sensor hasn't expired yet.
-func (s *SensorConfig) DaysPastExpiry() float64 {
-	if !s.IsExpired() {
-		return 0
-	}
-	return time.Since(s.ExpiresAt).Hours() / 24
 }

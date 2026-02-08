@@ -468,8 +468,8 @@ func TestE2E_GetLatestSensor(t *testing.T) {
 		t.Errorf("expected SENSOR001, got %s", response.Data.SerialNumber)
 	}
 
-	if !response.Data.IsActive {
-		t.Error("expected sensor to be active")
+	if response.Data.Status != "running" {
+		t.Errorf("expected status running, got %s", response.Data.Status)
 	}
 }
 

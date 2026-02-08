@@ -83,8 +83,8 @@ type SensorStatisticsFilters struct {
 // SensorStatisticsResult contains aggregated sensor statistics computed by SQL
 type SensorStatisticsResult struct {
 	TotalSensors int64
-	EndedSensors int64
-	AvgDuration  float64 // average days of use (ended sensors)
+	CompletedSensors int64
+	AvgDuration  float64 // average days of use (completed sensors)
 	MinDuration  float64
 	MaxDuration  float64
 	AvgExpected  float64 // average expected days

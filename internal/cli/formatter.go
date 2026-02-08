@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 )
 
 // TrendArrowText returns emoji + text for trend arrow
@@ -122,14 +123,8 @@ func FormatSensor(s *SensorInfo) string {
 		}
 		sb.WriteString(fmt.Sprintf("   Expires: %s", expiresDateTime))
 
-	case "expired":
-		// Expired: status with datetime
-		sb.WriteString(fmt.Sprintf("Expired: %s\n", expiresDateTime))
-		sb.WriteString(fmt.Sprintf("Sensor: %s", s.SerialNumber))
-
-	case "ended":
-		// Ended: show when it ended
-		sb.WriteString(fmt.Sprintf("Ended | %.1f days used\n", s.DaysElapsed))
+	case "stopped":
+		sb.WriteString(fmt.Sprintf("Stopped | %.1f / %.1f days\n", s.DaysElapsed, float64(s.DurationDays)))
 		sb.WriteString(fmt.Sprintf("Sensor: %s", s.SerialNumber))
 
 	default:
@@ -146,16 +141,16 @@ func FormatSensor(s *SensorInfo) string {
 	return sb.String()
 }
 
-// formatDateTime converts ISO timestamp to readable format (2006-01-02 15:04)
+// formatDateTime converts ISO timestamp to local time readable format (2006-01-02 15:04)
 func formatDateTime(isoTimestamp string) string {
-	// Input: 2006-01-02T15:04:05Z -> Output: 2006-01-02 15:04
-	if len(isoTimestamp) >= 16 {
-		return isoTimestamp[:10] + " " + isoTimestamp[11:16]
+	t, err := time.Parse("2006-01-02T15:04:05Z", isoTimestamp)
+	if err != nil {
+		if len(isoTimestamp) >= 16 {
+			return isoTimestamp[:10] + " " + isoTimestamp[11:16]
+		}
+		return isoTimestamp
 	}
-	if len(isoTimestamp) >= 10 {
-		return isoTimestamp[:10]
-	}
-	return isoTimestamp
+	return t.Local().Format("2006-01-02 15:04")
 }
 
 // FormatJSON formats any value as indented JSON
@@ -307,11 +302,11 @@ func FormatSensorStats(data *SensorStatisticsData) string {
 	// Summary section
 	sb.WriteString("📈 Summary\n")
 	sb.WriteString(fmt.Sprintf("   Total sensors:  %d\n", data.Statistics.TotalSensors))
-	sb.WriteString(fmt.Sprintf("   Completed:      %d\n", data.Statistics.EndedSensors))
+	sb.WriteString(fmt.Sprintf("   Completed:      %d\n", data.Statistics.CompletedSensors))
 	sb.WriteString("\n")
 
 	// Duration section (only if there are completed sensors)
-	if data.Statistics.EndedSensors > 0 {
+	if data.Statistics.CompletedSensors > 0 {
 		sb.WriteString("⏱️ Duration (completed sensors)\n")
 		sb.WriteString(fmt.Sprintf("   Average:  %.1f days (expected: %.1f)\n",
 			data.Statistics.AvgDuration, data.Statistics.AvgExpected))
@@ -360,6 +355,8 @@ func FormatSensorTable(sensors []SensorInfo, total int) string {
 		ended := "-"
 		if s.EndedAt != nil {
 			ended = formatDateTime(*s.EndedAt)
+		} else if s.Status == "stopped" {
+			ended = formatDateTime(s.ExpiresAt)
 		}
 		daysUsed := fmt.Sprintf("%.1f", s.DaysElapsed)
 		if s.ActualDays != nil {
