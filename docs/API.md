@@ -1,10 +1,10 @@
 # HTTP API Documentation
 
-**Version**: 0.6.0
+**Version**: 0.7.0
 **Updated**: 2026-02-08
 **Status**: Stable
 
-`glcore` provides a unified HTTP API server on port 8080 (configurable via `GLCMD_API_PORT`). All endpoints return JSON responses with consistent formatting and pass through logging, recovery, and timeout middlewares.
+`glcore` provides a unified HTTP API server on port 8080 (configurable via `GLCMD_API_PORT`). All endpoints return JSON responses with consistent formatting and pass through logging, recovery, and timeout middlewares. The SSE streaming endpoint is excluded from timeout middleware to support long-lived connections.
 
 ## API Stability
 
@@ -21,6 +21,7 @@ All endpoints in this documentation are stable and part of the 0.6.0 API contrac
 - `/v1/sensor` - Paginated sensor list
 - `/v1/sensor/latest` - Current active sensor
 - `/v1/sensor/stats` - Sensor lifecycle statistics
+- `/v1/stream` - Real-time event stream (SSE)
 
 **Unversioned endpoints** (monitoring):
 - `/health` - Health check
@@ -504,6 +505,68 @@ START=$(date -u -d '6 months ago' +%Y-%m-%dT%H:%M:%SZ)
 END=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 curl "http://localhost:8080/v1/sensor/stats?start=$START&end=$END" | jq
 ```
+
+---
+
+### 9. Event Stream (SSE)
+
+**GET** `/v1/stream`
+
+Streams real-time events using Server-Sent Events (SSE). This endpoint maintains a long-lived connection and pushes events as they occur.
+
+**Query Parameters:**
+
+| Parameter | Type   | Required | Default | Description                              |
+|-----------|--------|----------|---------|------------------------------------------|
+| `types`   | string | No       | all     | Comma-separated event types to receive   |
+
+**Event Types:**
+- `glucose` - New glucose measurement
+- `sensor` - Sensor status change (new sensor detected)
+- `keepalive` - Heartbeat (every 30 seconds)
+
+**Response Headers:**
+- `Content-Type: text/event-stream`
+- `Cache-Control: no-cache`
+- `Connection: keep-alive`
+- `X-Accel-Buffering: no` (disables nginx buffering)
+
+**Event Format:**
+
+Events are sent in standard SSE format:
+```
+event: glucose
+data: {"timestamp":"2026-01-15T10:30:00Z","value":5.6,"valueInMgPerDl":101,"trendArrow":3,...}
+
+event: sensor
+data: {"serialNumber":"ABC123","activation":"2026-01-01T00:00:00Z","status":"running",...}
+
+event: keepalive
+data: {}
+```
+
+**Examples:**
+```bash
+# Stream all events
+curl -N http://localhost:8080/v1/stream
+
+# Stream glucose only
+curl -N "http://localhost:8080/v1/stream?types=glucose"
+
+# Stream multiple types
+curl -N "http://localhost:8080/v1/stream?types=glucose,sensor"
+
+# Using glcli
+glcli watch                  # All events
+glcli watch --only glucose   # Glucose only
+glcli watch --json           # JSON output for scripting
+```
+
+**Notes:**
+- The connection remains open until the client disconnects
+- Keepalive events are sent every 30 seconds to detect dead connections
+- Events are non-blocking: slow subscribers may miss events if their buffer fills up
+- This endpoint bypasses the standard timeout middleware (5s) to allow long-lived connections
 
 ---
 

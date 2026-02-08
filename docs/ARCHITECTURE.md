@@ -1,7 +1,7 @@
 # Architecture Documentation
 
-**Version**: 0.5.0
-**Updated**: 2026-02-07
+**Version**: 0.7.0
+**Updated**: 2026-02-08
 **For**: glcmd glucose monitoring toolkit
 
 ## Overview
@@ -161,10 +161,11 @@ Unified HTTP API server providing programmatic access to glucose data.
 
 **Responsibilities**:
 - Serves unified REST API on port 8080 (configurable via `GLCMD_API_PORT`)
-- Exposes 8 endpoints: health, metrics, latest measurement, measurements list, statistics, sensors, sensor history, sensor stats
-- Applies middleware: logging, recovery, timeout enforcement
+- Exposes 9 endpoints: health, metrics, latest measurement, measurements list, statistics, sensors, sensor history, sensor stats, SSE stream
+- Applies middleware: logging, recovery, timeout enforcement (REST endpoints only)
 - Delegates data access to services
 - Formats responses as consistent JSON with domain-level field names
+- Provides real-time event streaming via SSE
 
 **Integration**:
 - Started alongside daemon in `cmd/glcore/main.go`
@@ -196,10 +197,46 @@ Command-line client for querying the glcore API.
 - `glcli sensor` — Current sensor info
 - `glcli sensor history` — Past sensors
 - `glcli sensor stats` — Sensor lifecycle statistics
+- `glcli watch` — Real-time event streaming
 - `glcli version` — Version information
 - `glcli completion` — Shell completion scripts
 
-## Recent Changes (v0.5.0)
+### 8. Event System (`internal/events`)
+
+Real-time event distribution using a pub/sub pattern.
+
+**Components**:
+- `Broker` — Central event hub managing subscriptions and distribution
+- `Event` — Generic event wrapper with type and data payload
+- `Subscriber` — Client subscription with optional type filtering
+
+**Event Flow**:
+1. Services publish events after successful operations (new measurement, sensor change)
+2. Broker distributes events to all matching subscribers (non-blocking)
+3. SSE handler forwards events to connected HTTP clients
+4. CLI/Frontend receives and displays events in real-time
+
+**Heartbeat**:
+- Broker sends `keepalive` events every 30 seconds
+- Allows detection of dead connections
+- Clients can use heartbeats to verify connection health
+
+**Thread Safety**:
+- All broker operations are thread-safe using RWMutex
+- Non-blocking publish prevents slow subscribers from affecting others
+- Channel buffer size configurable (default: 10 events)
+
+## Recent Changes (v0.7.0)
+
+### Real-time Streaming (SSE)
+- New `internal/events` package with pub/sub event broker
+- SSE endpoint at `/v1/stream` for real-time event streaming
+- New `glcli watch` command for CLI streaming
+- Services publish events on new measurements and sensor changes
+- Heartbeat mechanism (30s interval) for connection health monitoring
+- Type filtering support (glucose, sensor, keepalive)
+
+## Previous Changes (v0.5.0)
 
 ### Daemon Simplification
 - Removed periodic display of glucose readings (display ticker)

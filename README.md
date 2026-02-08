@@ -17,7 +17,8 @@ glcmd is a glucose monitoring toolkit for retrieving and monitoring blood glucos
 - CLI client with Cobra-based subcommands, shell completion, and JSON output
 - Local SQLite database persistence
 - Automatic sensor change detection with unresponsive sensor detection
-- HTTP REST API with 8 endpoints (health, metrics, measurements, statistics, sensors, sensor history, sensor stats)
+- HTTP REST API with 9 endpoints (health, metrics, measurements, statistics, sensors, sensor history, sensor stats, SSE stream)
+- Real-time streaming via Server-Sent Events (SSE)
 - Sensor lifecycle tracking with expiration, duration, and status fields
 - All-time statistics support with SQL-based calculations
 - Robust architecture with retry logic, transactions, and graceful shutdown
@@ -157,6 +158,11 @@ glcli queries data from a running glcore instance:
 
 # GMI (Glucose Management Indicator)
 ./bin/glcli gmi
+
+# Stream real-time events
+./bin/glcli watch
+./bin/glcli watch --only glucose
+./bin/glcli watch --json
 
 # JSON output for scripting
 ./bin/glcli --json
