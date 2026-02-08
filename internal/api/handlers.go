@@ -297,6 +297,15 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
 
+	// SSE metrics
+	sseMetrics := SSEMetrics{Enabled: false, Subscribers: 0}
+	if s.eventBroker != nil {
+		sseMetrics = SSEMetrics{
+			Enabled:     true,
+			Subscribers: s.eventBroker.SubscriberCount(),
+		}
+	}
+
 	metricsData := MetricsData{
 		Uptime:     time.Since(s.startTime).String(),
 		Goroutines: runtime.NumGoroutine(),
@@ -314,6 +323,12 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 		Process: ProcessInfo{
 			PID: os.Getpid(),
 		},
+		SSE: sseMetrics,
+	}
+
+	// Database pool stats
+	if s.getDatabasePoolStats != nil {
+		metricsData.Database = s.getDatabasePoolStats()
 	}
 
 	response := MetricsResponse{

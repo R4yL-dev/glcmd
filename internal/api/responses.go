@@ -181,11 +181,28 @@ type MetricsResponse struct {
 
 // MetricsData contains runtime and system metrics
 type MetricsData struct {
-	Uptime     string      `json:"uptime"`
-	Goroutines int         `json:"goroutines"`
-	Memory     MemoryStats `json:"memory"`
-	Runtime    RuntimeInfo `json:"runtime"`
-	Process    ProcessInfo `json:"process"`
+	Uptime     string             `json:"uptime"`
+	Goroutines int                `json:"goroutines"`
+	Memory     MemoryStats        `json:"memory"`
+	Runtime    RuntimeInfo        `json:"runtime"`
+	Process    ProcessInfo        `json:"process"`
+	SSE        SSEMetrics         `json:"sse"`
+	Database   *DatabasePoolStats `json:"database,omitempty"`
+}
+
+// SSEMetrics contains Server-Sent Events metrics
+type SSEMetrics struct {
+	Enabled     bool `json:"enabled"`
+	Subscribers int  `json:"subscribers"`
+}
+
+// DatabasePoolStats contains database connection pool statistics
+type DatabasePoolStats struct {
+	OpenConnections int    `json:"openConnections"`
+	InUse           int    `json:"inUse"`
+	Idle            int    `json:"idle"`
+	WaitCount       int64  `json:"waitCount"`
+	WaitDuration    string `json:"waitDuration"`
 }
 
 // MemoryStats contains memory statistics

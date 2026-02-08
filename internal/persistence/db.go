@@ -2,6 +2,7 @@ package persistence
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log/slog"
 	"os"
@@ -123,6 +124,16 @@ func (d *Database) Ping(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// Stats returns the database connection pool statistics.
+func (d *Database) Stats() (sql.DBStats, error) {
+	sqlDB, err := d.db.DB()
+	if err != nil {
+		return sql.DBStats{}, fmt.Errorf("failed to get underlying sql.DB for stats: %w", err)
+	}
+
+	return sqlDB.Stats(), nil
 }
 
 // parseLogLevel converts a string log level to GORM's logger.LogLevel.

@@ -149,6 +149,19 @@ func main() {
 			defer cancel()
 			return database.Ping(ctx) == nil
 		},
+		func() *api.DatabasePoolStats {
+			stats, err := database.Stats()
+			if err != nil {
+				return nil
+			}
+			return &api.DatabasePoolStats{
+				OpenConnections: stats.OpenConnections,
+				InUse:           stats.InUse,
+				Idle:            stats.Idle,
+				WaitCount:       stats.WaitCount,
+				WaitDuration:    stats.WaitDuration.String(),
+			}
+		},
 		slog.Default(),
 	)
 

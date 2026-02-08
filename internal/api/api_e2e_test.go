@@ -71,9 +71,12 @@ func setupE2ETest(t *testing.T) (http.Handler, *gorm.DB) {
 				ConsecutiveErrors: 0,
 				LastFetchTime:     time.Now(),
 				DatabaseConnected: true,
+				DataFresh:         true,
+				FetchInterval:     "5m0s",
 			}
 		},
 		func() bool { return true },
+		nil, // getDatabasePoolStats
 		slog.Default(),
 	)
 
@@ -509,6 +512,14 @@ func TestE2E_Health(t *testing.T) {
 	if !response.Data.DatabaseConnected {
 		t.Error("expected database connected")
 	}
+
+	if !response.Data.DataFresh {
+		t.Error("expected DataFresh = true")
+	}
+
+	if response.Data.FetchInterval != "5m0s" {
+		t.Errorf("expected FetchInterval = 5m0s, got %s", response.Data.FetchInterval)
+	}
 }
 
 // TestE2E_Metrics tests metrics endpoint
@@ -539,6 +550,20 @@ func TestE2E_Metrics(t *testing.T) {
 
 	if response.Data.Process.PID <= 0 {
 		t.Errorf("expected positive PID, got %d", response.Data.Process.PID)
+	}
+
+	// SSE metrics (broker is nil in tests)
+	if response.Data.SSE.Enabled {
+		t.Error("expected SSE.Enabled = false (no broker)")
+	}
+
+	if response.Data.SSE.Subscribers != 0 {
+		t.Errorf("expected SSE.Subscribers = 0, got %d", response.Data.SSE.Subscribers)
+	}
+
+	// Database pool stats (nil callback in tests)
+	if response.Data.Database != nil {
+		t.Error("expected Database = nil (no callback)")
 	}
 }
 

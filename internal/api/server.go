@@ -15,16 +15,17 @@ import (
 
 // Server represents the HTTP API server
 type Server struct {
-	httpServer        *http.Server
-	port              int
-	glucoseService    service.GlucoseService
-	sensorService     service.SensorService
-	configService     service.ConfigService
-	eventBroker       *events.Broker
-	logger            *slog.Logger
-	getHealthStatus   func() daemon.HealthStatus
-	getDatabaseHealth func() bool
-	startTime         time.Time
+	httpServer           *http.Server
+	port                 int
+	glucoseService       service.GlucoseService
+	sensorService        service.SensorService
+	configService        service.ConfigService
+	eventBroker          *events.Broker
+	logger               *slog.Logger
+	getHealthStatus      func() daemon.HealthStatus
+	getDatabaseHealth    func() bool
+	getDatabasePoolStats func() *DatabasePoolStats
+	startTime            time.Time
 }
 
 // NewServer creates a new API server instance.
@@ -37,18 +38,20 @@ func NewServer(
 	eventBroker *events.Broker,
 	getHealthStatus func() daemon.HealthStatus,
 	getDatabaseHealth func() bool,
+	getDatabasePoolStats func() *DatabasePoolStats,
 	logger *slog.Logger,
 ) *Server {
 	s := &Server{
-		port:              port,
-		glucoseService:    glucoseService,
-		sensorService:     sensorService,
-		configService:     configService,
-		eventBroker:       eventBroker,
-		getHealthStatus:   getHealthStatus,
-		getDatabaseHealth: getDatabaseHealth,
-		startTime:         time.Now(),
-		logger:            logger,
+		port:                 port,
+		glucoseService:       glucoseService,
+		sensorService:        sensorService,
+		configService:        configService,
+		eventBroker:          eventBroker,
+		getHealthStatus:      getHealthStatus,
+		getDatabaseHealth:    getDatabaseHealth,
+		getDatabasePoolStats: getDatabasePoolStats,
+		startTime:            time.Now(),
+		logger:               logger,
 	}
 
 	router := s.setupRouter()
