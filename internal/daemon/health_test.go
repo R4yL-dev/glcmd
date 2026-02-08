@@ -332,3 +332,104 @@ func TestGetHealthStatus_DataFresh_ZeroFetchTime(t *testing.T) {
 		t.Error("expected DataFresh = true for zero lastFetchTime (no fetch yet)")
 	}
 }
+
+func TestGetHealthStatus_SensorExpired_DegradedFromHealthy(t *testing.T) {
+	config := DefaultConfig()
+
+	d := &Daemon{
+		config:               config,
+		ctx:                  context.Background(),
+		consecutiveErrors:    0,
+		maxConsecutiveErrors: 5,
+		lastFetchTime:        time.Now(),
+		startTime:            time.Now().Add(-1 * time.Hour),
+		sensorExpiresAt:      time.Now().Add(-1 * time.Hour), // Expired 1 hour ago
+	}
+
+	status := d.GetHealthStatus()
+
+	if status.Status != "degraded" {
+		t.Errorf("expected status = degraded (sensor expired), got %s", status.Status)
+	}
+
+	if !status.SensorExpired {
+		t.Error("expected SensorExpired = true")
+	}
+
+	if !status.DataFresh {
+		t.Error("expected DataFresh = true")
+	}
+}
+
+func TestGetHealthStatus_SensorExpired_RemainsUnhealthy(t *testing.T) {
+	config := DefaultConfig()
+
+	d := &Daemon{
+		config:               config,
+		ctx:                  context.Background(),
+		consecutiveErrors:    5,
+		maxConsecutiveErrors: 5,
+		lastFetchError:       "persistent error",
+		lastFetchTime:        time.Now().Add(-20 * time.Minute),
+		startTime:            time.Now().Add(-2 * time.Hour),
+		sensorExpiresAt:      time.Now().Add(-1 * time.Hour), // Also expired
+	}
+
+	status := d.GetHealthStatus()
+
+	if status.Status != "unhealthy" {
+		t.Errorf("expected status = unhealthy (should not downgrade), got %s", status.Status)
+	}
+
+	if !status.SensorExpired {
+		t.Error("expected SensorExpired = true")
+	}
+}
+
+func TestGetHealthStatus_SensorNotExpired(t *testing.T) {
+	config := DefaultConfig()
+
+	d := &Daemon{
+		config:               config,
+		ctx:                  context.Background(),
+		consecutiveErrors:    0,
+		maxConsecutiveErrors: 5,
+		lastFetchTime:        time.Now(),
+		startTime:            time.Now().Add(-1 * time.Hour),
+		sensorExpiresAt:      time.Now().Add(5 * 24 * time.Hour), // Expires in 5 days
+	}
+
+	status := d.GetHealthStatus()
+
+	if status.Status != "healthy" {
+		t.Errorf("expected status = healthy, got %s", status.Status)
+	}
+
+	if status.SensorExpired {
+		t.Error("expected SensorExpired = false")
+	}
+}
+
+func TestGetHealthStatus_SensorExpiresAt_ZeroValue(t *testing.T) {
+	config := DefaultConfig()
+
+	d := &Daemon{
+		config:               config,
+		ctx:                  context.Background(),
+		consecutiveErrors:    0,
+		maxConsecutiveErrors: 5,
+		lastFetchTime:        time.Now(),
+		startTime:            time.Now().Add(-1 * time.Hour),
+		sensorExpiresAt:      time.Time{}, // Not set yet
+	}
+
+	status := d.GetHealthStatus()
+
+	if status.Status != "healthy" {
+		t.Errorf("expected status = healthy, got %s", status.Status)
+	}
+
+	if status.SensorExpired {
+		t.Error("expected SensorExpired = false for zero sensorExpiresAt")
+	}
+}

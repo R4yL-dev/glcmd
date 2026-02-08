@@ -61,6 +61,7 @@ type Daemon struct {
 	lastFetchTime        time.Time // Last successful fetch time
 	startTime            time.Time // Daemon start time
 	lastTargets          *domain.GlucoseTargets // Cache to avoid redundant saves
+	sensorExpiresAt      time.Time              // Expiration time of the current sensor
 }
 
 // New creates a new Daemon instance.
@@ -203,6 +204,12 @@ func (d *Daemon) GetHealthStatus() HealthStatus {
 		status = "degraded"
 	}
 
+	// Check sensor expiration: degrade if sensor is expired (but don't upgrade from unhealthy)
+	sensorExpired := !d.sensorExpiresAt.IsZero() && time.Now().After(d.sensorExpiresAt)
+	if sensorExpired && status == "healthy" {
+		status = "degraded"
+	}
+
 	return HealthStatus{
 		Status:            status,
 		Timestamp:         time.Now(),
@@ -211,6 +218,7 @@ func (d *Daemon) GetHealthStatus() HealthStatus {
 		LastFetchError:    d.lastFetchError,
 		LastFetchTime:     d.lastFetchTime,
 		DataFresh:         dataFresh,
+		SensorExpired:     sensorExpired,
 		FetchInterval:     d.config.FetchInterval.String(),
 	}
 }
@@ -226,6 +234,7 @@ type HealthStatus struct {
 	LastFetchTime     time.Time `json:"lastFetchTime"`
 	DatabaseConnected bool      `json:"databaseConnected"`
 	DataFresh         bool      `json:"dataFresh"`
+	SensorExpired     bool      `json:"sensorExpired"`
 	FetchInterval     string    `json:"fetchInterval"`
 }
 
@@ -559,6 +568,9 @@ func (d *Daemon) storeSensor(sensor *libreclient.SensorData) error {
 	if err := d.sensorService.HandleSensorChange(ctx, sensorConfig); err != nil {
 		return err
 	}
+
+	// Track sensor expiration for health checks
+	d.sensorExpiresAt = expiresAt
 
 	// Debug: log all sensor data (same pattern as measurements in fetch())
 	slog.Debug("sensor",
