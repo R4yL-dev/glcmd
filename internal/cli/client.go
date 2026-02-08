@@ -57,7 +57,7 @@ type SensorInfo struct {
 
 // GetLatestGlucose fetches the latest glucose reading
 func (c *Client) GetLatestGlucose(ctx context.Context) (*GlucoseReading, error) {
-	resp, err := c.get(ctx, "/v1/measurements/latest")
+	resp, err := c.get(ctx, "/v1/glucose/latest")
 	if err != nil {
 		return nil, fmt.Errorf("cannot connect to glcore at %s: %w", c.baseURL, err)
 	}
@@ -84,38 +84,39 @@ func (c *Client) GetLatestGlucose(ctx context.Context) (*GlucoseReading, error) 
 	return result.Data, nil
 }
 
-// GetCurrentSensor fetches the current sensor info
-func (c *Client) GetCurrentSensor(ctx context.Context) (*SensorInfo, error) {
-	resp, err := c.get(ctx, "/v1/sensors")
+// GetLatestSensor fetches the current (active) sensor info
+func (c *Client) GetLatestSensor(ctx context.Context) (*SensorInfo, error) {
+	resp, err := c.get(ctx, "/v1/sensor/latest")
 	if err != nil {
 		return nil, fmt.Errorf("cannot connect to glcore at %s: %w", c.baseURL, err)
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, fmt.Errorf("no active sensor found")
+	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("API returned status %d", resp.StatusCode)
 	}
 
 	var result struct {
-		Data struct {
-			Current *SensorInfo `json:"current"`
-		} `json:"data"`
+		Data *SensorInfo `json:"data"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	if result.Data.Current == nil {
+	if result.Data == nil {
 		return nil, fmt.Errorf("no active sensor found")
 	}
 
-	return result.Data.Current, nil
+	return result.Data, nil
 }
 
-// GetMeasurements fetches glucose measurements with optional filtering
-func (c *Client) GetMeasurements(ctx context.Context, params MeasurementParams) (*MeasurementListResponse, error) {
+// GetGlucose fetches glucose measurements with optional filtering
+func (c *Client) GetGlucose(ctx context.Context, params GlucoseParams) (*GlucoseListResponse, error) {
 	// Build query string
-	path := "/v1/measurements?"
+	path := "/v1/glucose?"
 	queryParts := []string{}
 
 	if params.Start != nil {
@@ -145,7 +146,7 @@ func (c *Client) GetMeasurements(ctx context.Context, params MeasurementParams) 
 		return nil, fmt.Errorf("API returned status %d", resp.StatusCode)
 	}
 
-	var result MeasurementListResponse
+	var result GlucoseListResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
@@ -153,10 +154,10 @@ func (c *Client) GetMeasurements(ctx context.Context, params MeasurementParams) 
 	return &result, nil
 }
 
-// GetStatistics fetches glucose statistics for a time period
-func (c *Client) GetStatistics(ctx context.Context, start, end *time.Time) (*StatisticsResponse, error) {
+// GetGlucoseStatistics fetches glucose statistics for a time period
+func (c *Client) GetGlucoseStatistics(ctx context.Context, start, end *time.Time) (*StatisticsResponse, error) {
 	// Build query string
-	path := "/v1/measurements/stats"
+	path := "/v1/glucose/stats"
 	queryParts := []string{}
 
 	if start != nil {
@@ -194,9 +195,9 @@ func (c *Client) GetStatistics(ctx context.Context, start, end *time.Time) (*Sta
 	return &result, nil
 }
 
-// GetSensorHistory fetches sensor history with optional filtering
-func (c *Client) GetSensorHistory(ctx context.Context, params SensorHistoryParams) (*SensorListResponse, error) {
-	path := "/v1/sensors/history?"
+// GetSensor fetches sensor history with optional filtering
+func (c *Client) GetSensor(ctx context.Context, params SensorParams) (*SensorListResponse, error) {
+	path := "/v1/sensor?"
 	queryParts := []string{}
 
 	if params.Start != nil {
@@ -235,8 +236,28 @@ func (c *Client) GetSensorHistory(ctx context.Context, params SensorHistoryParam
 }
 
 // GetSensorStatistics fetches sensor lifecycle statistics
-func (c *Client) GetSensorStatistics(ctx context.Context) (*SensorStatisticsResponse, error) {
-	resp, err := c.get(ctx, "/v1/sensors/stats")
+func (c *Client) GetSensorStatistics(ctx context.Context, start, end *time.Time) (*SensorStatisticsResponse, error) {
+	path := "/v1/sensor/stats"
+	queryParts := []string{}
+
+	if start != nil {
+		queryParts = append(queryParts, fmt.Sprintf("start=%s", start.UTC().Format(time.RFC3339)))
+	}
+	if end != nil {
+		queryParts = append(queryParts, fmt.Sprintf("end=%s", end.UTC().Format(time.RFC3339)))
+	}
+
+	if len(queryParts) > 0 {
+		path += "?"
+		for i, part := range queryParts {
+			if i > 0 {
+				path += "&"
+			}
+			path += part
+		}
+	}
+
+	resp, err := c.get(ctx, path)
 	if err != nil {
 		return nil, fmt.Errorf("cannot connect to glcore at %s: %w", c.baseURL, err)
 	}

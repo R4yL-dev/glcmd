@@ -18,7 +18,7 @@ This is an alias for 'glcli glucose history'. See 'glcli glucose history --help'
 
 func init() {
 	// Mirror the same flags as glucoseHistoryCmd
-	historyCmd.Flags().StringVar(&historyLast, "last", "", "Relative period (e.g., 24h, 7d, 2w)")
+	historyCmd.Flags().StringVar(&historyPeriod, "period", "", "Relative period (e.g., today, 24h, 7d, 2w, 1m)")
 	historyCmd.Flags().StringVar(&historyStart, "start", "", "Start date (YYYY-MM-DD)")
 	historyCmd.Flags().StringVar(&historyEnd, "end", "", "End date (YYYY-MM-DD)")
 	historyCmd.Flags().IntVar(&historyLimit, "limit", 50, "Maximum number of measurements")

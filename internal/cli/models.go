@@ -2,8 +2,8 @@ package cli
 
 import "time"
 
-// MeasurementListResponse represents the API response for measurements list
-type MeasurementListResponse struct {
+// GlucoseListResponse represents the API response for glucose list
+type GlucoseListResponse struct {
 	Data       []GlucoseReading `json:"data"`
 	Pagination PaginationInfo   `json:"pagination"`
 }
@@ -71,8 +71,8 @@ type StatsTimeInRange struct {
 	AboveRange     float64 `json:"aboveRange"`
 }
 
-// MeasurementParams contains parameters for fetching measurements
-type MeasurementParams struct {
+// GlucoseParams contains parameters for fetching glucose measurements
+type GlucoseParams struct {
 	Start *time.Time
 	End   *time.Time
 	Limit int
@@ -84,8 +84,8 @@ type SensorListResponse struct {
 	Pagination PaginationInfo `json:"pagination"`
 }
 
-// SensorHistoryParams contains parameters for fetching sensor history
-type SensorHistoryParams struct {
+// SensorParams contains parameters for fetching sensors
+type SensorParams struct {
 	Start *time.Time
 	End   *time.Time
 	Limit int
@@ -98,6 +98,7 @@ type SensorStatisticsResponse struct {
 
 // SensorStatisticsData contains sensor statistics
 type SensorStatisticsData struct {
+	Period     *StatsPeriod       `json:"period,omitempty"`
 	Statistics SensorStatsDetails `json:"statistics"`
 	Current    *SensorInfo        `json:"current,omitempty"`
 }

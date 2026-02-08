@@ -20,7 +20,7 @@ Shows serial number, days elapsed, days remaining, and expiration date.`,
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		sensor, err := client.GetCurrentSensor(ctx)
+		sensor, err := client.GetLatestSensor(ctx)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)

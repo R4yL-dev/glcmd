@@ -56,7 +56,7 @@ func runGlucoseGmi(cmd *cobra.Command, args []string) {
 			defer wg.Done()
 			start := now.AddDate(0, 0, -days)
 			end := now
-			res, err := client.GetStatistics(ctx, &start, &end)
+			res, err := client.GetGlucoseStatistics(ctx, &start, &end)
 			ch <- periodResult{index: idx, result: res, err: err}
 		}(i, p.days)
 	}
