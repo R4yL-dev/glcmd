@@ -142,8 +142,12 @@ func (s *SensorServiceImpl) GetSensorsWithFilters(ctx context.Context, filters r
 }
 
 // GetStatistics returns aggregated sensor lifecycle statistics.
-func (s *SensorServiceImpl) GetStatistics(ctx context.Context) (*SensorStats, error) {
-	result, err := s.repo.GetStatistics(ctx)
+func (s *SensorServiceImpl) GetStatistics(ctx context.Context, start, end *time.Time) (*SensorStats, error) {
+	filters := repository.SensorStatisticsFilters{
+		StartTime: start,
+		EndTime:   end,
+	}
+	result, err := s.repo.GetStatistics(ctx, filters)
 	if err != nil {
 		return nil, err
 	}

@@ -138,7 +138,7 @@ func (r *SensorRepositoryGORM) CountWithFilters(ctx context.Context, filters Sen
 }
 
 // GetStatistics returns aggregated sensor lifecycle statistics computed by SQL.
-func (r *SensorRepositoryGORM) GetStatistics(ctx context.Context) (*SensorStatisticsResult, error) {
+func (r *SensorRepositoryGORM) GetStatistics(ctx context.Context, filters SensorStatisticsFilters) (*SensorStatisticsResult, error) {
 	db := txOrDefault(ctx, r.db)
 
 	selectClause := `
@@ -153,8 +153,18 @@ func (r *SensorRepositoryGORM) GetStatistics(ctx context.Context) (*SensorStatis
 		COALESCE(AVG(duration_days), 0) as avg_expected
 	`
 
+	query := db.Model(&domain.SensorConfig{}).Select(selectClause)
+
+	// Apply time filters
+	if filters.StartTime != nil {
+		query = query.Where("activation >= ?", *filters.StartTime)
+	}
+	if filters.EndTime != nil {
+		query = query.Where("activation <= ?", *filters.EndTime)
+	}
+
 	var result SensorStatisticsResult
-	if err := db.Model(&domain.SensorConfig{}).Select(selectClause).Scan(&result).Error; err != nil {
+	if err := query.Scan(&result).Error; err != nil {
 		return nil, err
 	}
 

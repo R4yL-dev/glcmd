@@ -79,9 +79,9 @@ func parseTimeRange(r *http.Request) (start, end *time.Time, err error) {
 	return start, end, nil
 }
 
-// parseMeasurementFilters parses filter parameters from query string
-func parseMeasurementFilters(r *http.Request) (repository.MeasurementFilters, error) {
-	filters := repository.MeasurementFilters{}
+// parseGlucoseFilters parses filter parameters from query string
+func parseGlucoseFilters(r *http.Request) (repository.GlucoseFilters, error) {
+	filters := repository.GlucoseFilters{}
 
 	start, end, err := parseTimeRange(r)
 	if err != nil {

@@ -11,8 +11,8 @@ import (
 	"github.com/R4yL-dev/glcmd/internal/persistence"
 )
 
-// handleGetLatestMeasurement handles GET /measurements/latest
-func (s *Server) handleGetLatestMeasurement(w http.ResponseWriter, r *http.Request) {
+// handleGetLatestGlucose handles GET /glucose/latest
+func (s *Server) handleGetLatestGlucose(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
@@ -35,8 +35,8 @@ func (s *Server) handleGetLatestMeasurement(w http.ResponseWriter, r *http.Reque
 	}
 }
 
-// handleGetMeasurements handles GET /measurements
-func (s *Server) handleGetMeasurements(w http.ResponseWriter, r *http.Request) {
+// handleGetGlucose handles GET /glucose
+func (s *Server) handleGetGlucose(w http.ResponseWriter, r *http.Request) {
 	// Parse pagination parameters
 	limit, offset, err := parsePaginationParams(r)
 	if err != nil {
@@ -45,7 +45,7 @@ func (s *Server) handleGetMeasurements(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Parse filter parameters
-	filters, err := parseMeasurementFilters(r)
+	filters, err := parseGlucoseFilters(r)
 	if err != nil {
 		handleError(w, err, s.logger)
 		return
@@ -72,8 +72,8 @@ func (s *Server) handleGetMeasurements(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// handleGetStatistics handles GET /measurements/stats
-func (s *Server) handleGetStatistics(w http.ResponseWriter, r *http.Request) {
+// handleGetGlucoseStatistics handles GET /glucose/stats
+func (s *Server) handleGetGlucoseStatistics(w http.ResponseWriter, r *http.Request) {
 	// Parse and validate parameters (nil = all time)
 	start, end, err := parseStatisticsParams(r)
 	if err != nil {
@@ -148,54 +148,9 @@ func (s *Server) handleGetStatistics(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// handleGetSensors handles GET /sensors
-func (s *Server) handleGetSensors(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-	defer cancel()
-
-	// Get all sensors
-	sensors, err := s.sensorService.GetAllSensors(ctx)
-	if err != nil {
-		handleError(w, err, s.logger)
-		return
-	}
-
-	// Get current sensor
-	currentSensor, err := s.sensorService.GetCurrentSensor(ctx)
-	if err != nil && !errors.Is(err, persistence.ErrNotFound) {
-		handleError(w, err, s.logger)
-		return
-	}
-
-	// Build response with calculated fields
-	var currentResp *SensorResponse
-	if currentSensor != nil {
-		currentResp = NewSensorResponse(currentSensor)
-	}
-
-	// Convert all sensors to response format (history = all except current)
-	history := make([]*SensorResponse, 0, len(sensors))
-	for _, sensor := range sensors {
-		// Include in history if it's ended (not current)
-		if sensor.EndedAt != nil {
-			history = append(history, NewSensorResponse(sensor))
-		}
-	}
-
-	response := SensorsResponse{
-		Data: SensorsData{
-			Current: currentResp,
-			History: history,
-		},
-	}
-
-	if err := writeJSONResponse(w, http.StatusOK, response); err != nil {
-		s.logger.Error("failed to write response", "error", err)
-	}
-}
-
-// handleGetSensorHistory handles GET /sensors/history
-func (s *Server) handleGetSensorHistory(w http.ResponseWriter, r *http.Request) {
+// handleGetSensor handles GET /sensor
+// Returns a paginated list of sensors with optional filters
+func (s *Server) handleGetSensor(w http.ResponseWriter, r *http.Request) {
 	limit, offset, err := parsePaginationParams(r)
 	if err != nil {
 		handleError(w, err, s.logger)
@@ -232,12 +187,44 @@ func (s *Server) handleGetSensorHistory(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
-// handleGetSensorStatistics handles GET /sensors/stats
+// handleGetLatestSensor handles GET /sensor/latest
+// Returns the current (active) sensor
+func (s *Server) handleGetLatestSensor(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	sensor, err := s.sensorService.GetCurrentSensor(ctx)
+	if err != nil {
+		if errors.Is(err, persistence.ErrNotFound) {
+			writeJSONError(w, http.StatusNotFound, "No active sensor found")
+			return
+		}
+		handleError(w, err, s.logger)
+		return
+	}
+
+	response := LatestSensorResponse{
+		Data: NewSensorResponse(sensor),
+	}
+
+	if err := writeJSONResponse(w, http.StatusOK, response); err != nil {
+		s.logger.Error("failed to write response", "error", err)
+	}
+}
+
+// handleGetSensorStatistics handles GET /sensor/stats
 func (s *Server) handleGetSensorStatistics(w http.ResponseWriter, r *http.Request) {
+	// Parse time range (optional)
+	start, end, err := parseStatisticsParams(r)
+	if err != nil {
+		handleError(w, err, s.logger)
+		return
+	}
+
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
-	stats, err := s.sensorService.GetStatistics(ctx)
+	stats, err := s.sensorService.GetStatistics(ctx, start, end)
 	if err != nil {
 		handleError(w, err, s.logger)
 		return
@@ -250,8 +237,18 @@ func (s *Server) handleGetSensorStatistics(w http.ResponseWriter, r *http.Reques
 		currentResp = NewSensorResponse(currentSensor)
 	}
 
+	// Build response with period info
+	var periodInfo *PeriodInfo
+	if start != nil && end != nil {
+		periodInfo = &PeriodInfo{
+			Start: start.Format(time.RFC3339),
+			End:   end.Format(time.RFC3339),
+		}
+	}
+
 	response := SensorStatisticsResponse{
 		Data: SensorStatisticsData{
+			Period:     periodInfo,
 			Statistics: *stats,
 			Current:    currentResp,
 		},

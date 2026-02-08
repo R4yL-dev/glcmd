@@ -22,7 +22,7 @@ type MockSensorRepository struct {
 	FindBySerialNumberFunc func(ctx context.Context, serial string) (*domain.SensorConfig, error)
 	FindWithFiltersFunc    func(ctx context.Context, filters repository.SensorFilters, limit, offset int) ([]*domain.SensorConfig, error)
 	CountWithFiltersFunc   func(ctx context.Context, filters repository.SensorFilters) (int64, error)
-	GetStatisticsFunc      func(ctx context.Context) (*repository.SensorStatisticsResult, error)
+	GetStatisticsFunc      func(ctx context.Context, filters repository.SensorStatisticsFilters) (*repository.SensorStatisticsResult, error)
 }
 
 func (m *MockSensorRepository) FindCurrent(ctx context.Context) (*domain.SensorConfig, error) {
@@ -74,9 +74,9 @@ func (m *MockSensorRepository) CountWithFilters(ctx context.Context, filters rep
 	return 0, nil
 }
 
-func (m *MockSensorRepository) GetStatistics(ctx context.Context) (*repository.SensorStatisticsResult, error) {
+func (m *MockSensorRepository) GetStatistics(ctx context.Context, filters repository.SensorStatisticsFilters) (*repository.SensorStatisticsResult, error) {
 	if m.GetStatisticsFunc != nil {
-		return m.GetStatisticsFunc(ctx)
+		return m.GetStatisticsFunc(ctx, filters)
 	}
 	return &repository.SensorStatisticsResult{}, nil
 }

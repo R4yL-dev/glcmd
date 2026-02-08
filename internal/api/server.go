@@ -75,15 +75,15 @@ func (s *Server) setupRouter() *chi.Mux {
 
 	// API v1 routes (versioned)
 	r.Route("/v1", func(r chi.Router) {
-		// Measurement routes
-		r.Get("/measurements", s.handleGetMeasurements)
-		r.Get("/measurements/latest", s.handleGetLatestMeasurement)
-		r.Get("/measurements/stats", s.handleGetStatistics)
+		// Glucose routes
+		r.Get("/glucose", s.handleGetGlucose)
+		r.Get("/glucose/latest", s.handleGetLatestGlucose)
+		r.Get("/glucose/stats", s.handleGetGlucoseStatistics)
 
 		// Sensor routes
-		r.Get("/sensors", s.handleGetSensors)
-		r.Get("/sensors/history", s.handleGetSensorHistory)
-		r.Get("/sensors/stats", s.handleGetSensorStatistics)
+		r.Get("/sensor", s.handleGetSensor)
+		r.Get("/sensor/latest", s.handleGetLatestSensor)
+		r.Get("/sensor/stats", s.handleGetSensorStatistics)
 	})
 
 	return r

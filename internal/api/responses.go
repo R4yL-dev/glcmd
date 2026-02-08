@@ -17,16 +17,22 @@ type PaginationMetadata struct {
 	HasMore bool  `json:"hasMore"`
 }
 
-// MeasurementListResponse represents a paginated list of measurements
-type MeasurementListResponse struct {
+// GlucoseListResponse represents a paginated list of glucose measurements
+type GlucoseListResponse struct {
 	Data       []*domain.GlucoseMeasurement `json:"data"`
 	Pagination PaginationMetadata           `json:"pagination"`
 }
 
-// MeasurementResponse represents a single measurement response
-type MeasurementResponse struct {
+// GlucoseResponse represents a single glucose measurement response
+type GlucoseResponse struct {
 	Data *domain.GlucoseMeasurement `json:"data"`
 }
+
+// MeasurementListResponse is an alias for GlucoseListResponse (backwards compatibility)
+type MeasurementListResponse = GlucoseListResponse
+
+// MeasurementResponse is an alias for GlucoseResponse (backwards compatibility)
+type MeasurementResponse = GlucoseResponse
 
 // StatisticsResponse represents statistics response
 type StatisticsResponse struct {
@@ -101,6 +107,11 @@ type SensorListResponse struct {
 	Pagination PaginationMetadata `json:"pagination"`
 }
 
+// LatestSensorResponse represents the latest (current) sensor response
+type LatestSensorResponse struct {
+	Data *SensorResponse `json:"data"`
+}
+
 // SensorStatisticsResponse represents sensor statistics response
 type SensorStatisticsResponse struct {
 	Data SensorStatisticsData `json:"data"`
@@ -108,6 +119,7 @@ type SensorStatisticsResponse struct {
 
 // SensorStatisticsData contains sensor lifecycle statistics
 type SensorStatisticsData struct {
+	Period     *PeriodInfo         `json:"period,omitempty"`
 	Statistics service.SensorStats `json:"statistics"`
 	Current    *SensorResponse     `json:"current,omitempty"`
 }

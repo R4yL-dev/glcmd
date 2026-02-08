@@ -44,7 +44,7 @@ func setupE2ETest(t *testing.T) (http.Handler, *gorm.DB) {
 	}
 
 	// Create repositories
-	measurementRepo := repository.NewMeasurementRepository(db)
+	measurementRepo := repository.NewGlucoseRepository(db)
 	sensorRepo := repository.NewSensorRepository(db)
 	userRepo := repository.NewUserRepository(db)
 	deviceRepo := repository.NewDeviceRepository(db)
@@ -85,7 +85,7 @@ func setupE2ETest(t *testing.T) (http.Handler, *gorm.DB) {
 func TestE2E_GetLatestMeasurement_NotFound(t *testing.T) {
 	server, _ := setupE2ETest(t)
 
-	req := httptest.NewRequest("GET", "/v1/measurements/latest", nil)
+	req := httptest.NewRequest("GET", "/v1/glucose/latest", nil)
 	w := httptest.NewRecorder()
 
 	server.ServeHTTP(w, req)
@@ -113,15 +113,15 @@ func TestE2E_SaveAndGetMeasurement(t *testing.T) {
 		Timestamp:        time.Now().UTC(),
 		Value:            5.5,
 		ValueInMgPerDl:   99,
-		MeasurementColor: domain.MeasurementColorNormal,
-		Type:             domain.MeasurementTypeCurrent,
+		GlucoseColor: domain.GlucoseColorNormal,
+		Type:             domain.GlucoseTypeCurrent,
 	}
 	if err := db.Create(measurement).Error; err != nil {
 		t.Fatalf("failed to insert test measurement: %v", err)
 	}
 
 	// GET via API
-	req := httptest.NewRequest("GET", "/v1/measurements/latest", nil)
+	req := httptest.NewRequest("GET", "/v1/glucose/latest", nil)
 	w := httptest.NewRecorder()
 
 	server.ServeHTTP(w, req)
@@ -141,8 +141,8 @@ func TestE2E_SaveAndGetMeasurement(t *testing.T) {
 	if response.Data.ValueInMgPerDl != 99 {
 		t.Errorf("expected value 99 mg/dL, got %d", response.Data.ValueInMgPerDl)
 	}
-	if response.Data.MeasurementColor != domain.MeasurementColorNormal {
-		t.Errorf("expected color %d, got %d", domain.MeasurementColorNormal, response.Data.MeasurementColor)
+	if response.Data.GlucoseColor != domain.GlucoseColorNormal {
+		t.Errorf("expected color %d, got %d", domain.GlucoseColorNormal, response.Data.GlucoseColor)
 	}
 }
 
@@ -156,8 +156,8 @@ func TestE2E_GetMeasurements_WithPagination(t *testing.T) {
 			Timestamp:        time.Now().UTC().Add(time.Duration(-i) * time.Hour),
 			Value:            5.0 + float64(i)*0.1,
 			ValueInMgPerDl:   90 + i,
-			MeasurementColor: domain.MeasurementColorNormal,
-			Type:             domain.MeasurementTypeCurrent,
+			GlucoseColor: domain.GlucoseColorNormal,
+			Type:             domain.GlucoseTypeCurrent,
 		}
 		if err := db.Create(measurement).Error; err != nil {
 			t.Fatalf("failed to insert test measurement: %v", err)
@@ -165,7 +165,7 @@ func TestE2E_GetMeasurements_WithPagination(t *testing.T) {
 	}
 
 	// GET first page (limit=2)
-	req := httptest.NewRequest("GET", "/v1/measurements?limit=2&offset=0", nil)
+	req := httptest.NewRequest("GET", "/v1/glucose?limit=2&offset=0", nil)
 	w := httptest.NewRecorder()
 
 	server.ServeHTTP(w, req)
@@ -192,7 +192,7 @@ func TestE2E_GetMeasurements_WithPagination(t *testing.T) {
 	}
 
 	// GET second page (limit=2, offset=2)
-	req = httptest.NewRequest("GET", "/v1/measurements?limit=2&offset=2", nil)
+	req = httptest.NewRequest("GET", "/v1/glucose?limit=2&offset=2", nil)
 	w = httptest.NewRecorder()
 
 	server.ServeHTTP(w, req)
@@ -231,9 +231,9 @@ func TestE2E_GetStatistics_WithData(t *testing.T) {
 	// Insert measurements with different colors (use UTC time)
 	now := time.Now().UTC()
 	measurements := []*domain.GlucoseMeasurement{
-		{Timestamp: now.Add(-3 * time.Hour), Value: 5.0, ValueInMgPerDl: 90, MeasurementColor: domain.MeasurementColorNormal, Type: domain.MeasurementTypeCurrent},
-		{Timestamp: now.Add(-2 * time.Hour), Value: 8.5, ValueInMgPerDl: 153, MeasurementColor: domain.MeasurementColorWarning, IsHigh: true, Type: domain.MeasurementTypeCurrent},
-		{Timestamp: now.Add(-1 * time.Hour), Value: 5.2, ValueInMgPerDl: 94, MeasurementColor: domain.MeasurementColorNormal, Type: domain.MeasurementTypeCurrent},
+		{Timestamp: now.Add(-3 * time.Hour), Value: 5.0, ValueInMgPerDl: 90, GlucoseColor: domain.GlucoseColorNormal, Type: domain.GlucoseTypeCurrent},
+		{Timestamp: now.Add(-2 * time.Hour), Value: 8.5, ValueInMgPerDl: 153, GlucoseColor: domain.GlucoseColorWarning, IsHigh: true, Type: domain.GlucoseTypeCurrent},
+		{Timestamp: now.Add(-1 * time.Hour), Value: 5.2, ValueInMgPerDl: 94, GlucoseColor: domain.GlucoseColorNormal, Type: domain.GlucoseTypeCurrent},
 	}
 	for _, m := range measurements {
 		if err := db.Create(m).Error; err != nil {
@@ -245,7 +245,7 @@ func TestE2E_GetStatistics_WithData(t *testing.T) {
 	start := now.Add(-4 * time.Hour).Format(time.RFC3339)
 	end := now.Format(time.RFC3339)
 
-	req := httptest.NewRequest("GET", "/v1/measurements/stats?start="+start+"&end="+end, nil)
+	req := httptest.NewRequest("GET", "/v1/glucose/stats?start="+start+"&end="+end, nil)
 	w := httptest.NewRecorder()
 
 	server.ServeHTTP(w, req)
@@ -292,7 +292,7 @@ func TestE2E_GetStatistics_InvalidTimeRange(t *testing.T) {
 	start := time.Now().UTC().Format(time.RFC3339)
 	end := time.Now().UTC().Add(-1 * time.Hour).Format(time.RFC3339)
 
-	req := httptest.NewRequest("GET", "/v1/measurements/stats?start="+start+"&end="+end, nil)
+	req := httptest.NewRequest("GET", "/v1/glucose/stats?start="+start+"&end="+end, nil)
 	w := httptest.NewRecorder()
 
 	server.ServeHTTP(w, req)
@@ -310,7 +310,7 @@ func TestE2E_GetStatistics_LargeTimeRange(t *testing.T) {
 	start := time.Now().UTC().Add(-100 * 24 * time.Hour).Format(time.RFC3339)
 	end := time.Now().UTC().Format(time.RFC3339)
 
-	req := httptest.NewRequest("GET", "/v1/measurements/stats?start="+start+"&end="+end, nil)
+	req := httptest.NewRequest("GET", "/v1/glucose/stats?start="+start+"&end="+end, nil)
 	w := httptest.NewRecorder()
 
 	server.ServeHTTP(w, req)
@@ -331,13 +331,13 @@ func TestE2E_GetStatistics_AllTime(t *testing.T) {
 		Timestamp:        now.Add(-1 * time.Hour),
 		Value:            7.0,
 		ValueInMgPerDl:   126,
-		Type:             domain.MeasurementTypeCurrent,
-		MeasurementColor: domain.MeasurementColorNormal,
+		Type:             domain.GlucoseTypeCurrent,
+		GlucoseColor: domain.GlucoseColorNormal,
 	}
 	db.Create(measurement)
 
 	// Query without start/end (all time)
-	req := httptest.NewRequest("GET", "/v1/measurements/stats", nil)
+	req := httptest.NewRequest("GET", "/v1/glucose/stats", nil)
 	w := httptest.NewRecorder()
 
 	server.ServeHTTP(w, req)
@@ -362,8 +362,8 @@ func TestE2E_GetStatistics_AllTime(t *testing.T) {
 	}
 }
 
-// TestE2E_GetSensors tests sensor listing
-func TestE2E_GetSensors(t *testing.T) {
+// TestE2E_GetSensor tests sensor listing
+func TestE2E_GetSensor(t *testing.T) {
 	server, db := setupE2ETest(t)
 
 	now := time.Now().UTC()
@@ -375,7 +375,7 @@ func TestE2E_GetSensors(t *testing.T) {
 			SerialNumber: "SENSOR001",
 			Activation:   now.Add(-22 * 24 * time.Hour),
 			ExpiresAt:    now.Add(-7 * 24 * time.Hour),
-			EndedAt:      &endedAt, // Ended sensor (in history)
+			EndedAt:      &endedAt, // Ended sensor
 			SensorType:   4,
 			DurationDays: 15,
 			DetectedAt:   now.Add(-22 * 24 * time.Hour),
@@ -396,8 +396,8 @@ func TestE2E_GetSensors(t *testing.T) {
 		}
 	}
 
-	// GET sensors
-	req := httptest.NewRequest("GET", "/v1/sensors", nil)
+	// GET sensors (paginated list)
+	req := httptest.NewRequest("GET", "/v1/sensor", nil)
 	w := httptest.NewRecorder()
 
 	server.ServeHTTP(w, req)
@@ -406,23 +406,80 @@ func TestE2E_GetSensors(t *testing.T) {
 		t.Fatalf("expected status 200, got %d", w.Code)
 	}
 
-	var response api.SensorsResponse
+	var response api.SensorListResponse
 	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
 		t.Fatalf("failed to parse response: %v", err)
 	}
 
-	// Verify current sensor is identified
-	if response.Data.Current == nil {
-		t.Error("expected current sensor, got nil")
-	} else if response.Data.Current.SerialNumber != "SENSOR002" {
-		t.Errorf("expected current sensor SENSOR002, got %s", response.Data.Current.SerialNumber)
+	// Verify all sensors are returned
+	if len(response.Data) != 2 {
+		t.Errorf("expected 2 sensors, got %d", len(response.Data))
 	}
 
-	// Verify history contains ended sensor
-	if len(response.Data.History) != 1 {
-		t.Errorf("expected 1 sensor in history, got %d", len(response.Data.History))
-	} else if response.Data.History[0].SerialNumber != "SENSOR001" {
-		t.Errorf("expected SENSOR001 in history, got %s", response.Data.History[0].SerialNumber)
+	if response.Pagination.Total != 2 {
+		t.Errorf("expected total 2, got %d", response.Pagination.Total)
+	}
+}
+
+// TestE2E_GetLatestSensor tests getting the current sensor
+func TestE2E_GetLatestSensor(t *testing.T) {
+	server, db := setupE2ETest(t)
+
+	now := time.Now().UTC()
+
+	// Insert current sensor
+	sensor := &domain.SensorConfig{
+		SerialNumber: "SENSOR001",
+		Activation:   now.Add(-2 * 24 * time.Hour),
+		ExpiresAt:    now.Add(12 * 24 * time.Hour),
+		EndedAt:      nil, // Current sensor
+		SensorType:   4,
+		DurationDays: 14,
+		DetectedAt:   now.Add(-2 * 24 * time.Hour),
+	}
+	if err := db.Create(sensor).Error; err != nil {
+		t.Fatalf("failed to insert sensor: %v", err)
+	}
+
+	// GET latest sensor
+	req := httptest.NewRequest("GET", "/v1/sensor/latest", nil)
+	w := httptest.NewRecorder()
+
+	server.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", w.Code)
+	}
+
+	var response api.LatestSensorResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatalf("failed to parse response: %v", err)
+	}
+
+	if response.Data == nil {
+		t.Fatal("expected sensor data, got nil")
+	}
+
+	if response.Data.SerialNumber != "SENSOR001" {
+		t.Errorf("expected SENSOR001, got %s", response.Data.SerialNumber)
+	}
+
+	if !response.Data.IsActive {
+		t.Error("expected sensor to be active")
+	}
+}
+
+// TestE2E_GetLatestSensor_NotFound tests getting latest sensor when none exists
+func TestE2E_GetLatestSensor_NotFound(t *testing.T) {
+	server, _ := setupE2ETest(t)
+
+	req := httptest.NewRequest("GET", "/v1/sensor/latest", nil)
+	w := httptest.NewRecorder()
+
+	server.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("expected status 404, got %d", w.Code)
 	}
 }
 
@@ -488,7 +545,7 @@ func TestE2E_Metrics(t *testing.T) {
 func TestE2E_CORS_Preflight(t *testing.T) {
 	server, _ := setupE2ETest(t)
 
-	req := httptest.NewRequest("OPTIONS", "/v1/measurements/latest", nil)
+	req := httptest.NewRequest("OPTIONS", "/v1/glucose/latest", nil)
 	req.Header.Set("Origin", "http://localhost:3000")
 	req.Header.Set("Access-Control-Request-Method", "GET")
 	w := httptest.NewRecorder()
