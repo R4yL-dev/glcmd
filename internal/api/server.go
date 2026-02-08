@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/R4yL-dev/glcmd/internal/daemon"
+	"github.com/R4yL-dev/glcmd/internal/events"
 	"github.com/R4yL-dev/glcmd/internal/service"
 )
 
@@ -19,18 +20,21 @@ type Server struct {
 	glucoseService    service.GlucoseService
 	sensorService     service.SensorService
 	configService     service.ConfigService
+	eventBroker       *events.Broker
 	logger            *slog.Logger
 	getHealthStatus   func() daemon.HealthStatus
 	getDatabaseHealth func() bool
 	startTime         time.Time
 }
 
-// NewServer creates a new API server instance
+// NewServer creates a new API server instance.
+// eventBroker is optional and can be nil (disables SSE streaming).
 func NewServer(
 	port int,
 	glucoseService service.GlucoseService,
 	sensorService service.SensorService,
 	configService service.ConfigService,
+	eventBroker *events.Broker,
 	getHealthStatus func() daemon.HealthStatus,
 	getDatabaseHealth func() bool,
 	logger *slog.Logger,
@@ -40,6 +44,7 @@ func NewServer(
 		glucoseService:    glucoseService,
 		sensorService:     sensorService,
 		configService:     configService,
+		eventBroker:       eventBroker,
 		getHealthStatus:   getHealthStatus,
 		getDatabaseHealth: getDatabaseHealth,
 		startTime:         time.Now(),
@@ -63,27 +68,39 @@ func NewServer(
 func (s *Server) setupRouter() *chi.Mux {
 	r := chi.NewRouter()
 
-	// Middleware
-	r.Use(s.corsMiddleware)      // CORS must be first for preflight requests
-	r.Use(s.loggingMiddleware)
+	// Global middleware (applied to all routes)
+	r.Use(s.corsMiddleware) // CORS must be first for preflight requests
 	r.Use(s.recoveryMiddleware)
-	r.Use(s.timeoutMiddleware)
 
-	// Monitoring endpoints at root (no versioning for operational endpoints)
-	r.Get("/health", s.handleHealth)
-	r.Get("/metrics", s.handleMetrics)
+	// Monitoring endpoints with logging + timeout
+	r.Group(func(r chi.Router) {
+		r.Use(s.loggingMiddleware)
+		r.Use(s.timeoutMiddleware)
+		r.Get("/health", s.handleHealth)
+		r.Get("/metrics", s.handleMetrics)
+	})
 
-	// API v1 routes (versioned)
+	// API v1 routes
 	r.Route("/v1", func(r chi.Router) {
-		// Glucose routes
-		r.Get("/glucose", s.handleGetGlucose)
-		r.Get("/glucose/latest", s.handleGetLatestGlucose)
-		r.Get("/glucose/stats", s.handleGetGlucoseStatistics)
+		// REST endpoints with logging + timeout
+		r.Group(func(r chi.Router) {
+			r.Use(s.loggingMiddleware)
+			r.Use(s.timeoutMiddleware)
 
-		// Sensor routes
-		r.Get("/sensor", s.handleGetSensor)
-		r.Get("/sensor/latest", s.handleGetLatestSensor)
-		r.Get("/sensor/stats", s.handleGetSensorStatistics)
+			// Glucose routes
+			r.Get("/glucose", s.handleGetGlucose)
+			r.Get("/glucose/latest", s.handleGetLatestGlucose)
+			r.Get("/glucose/stats", s.handleGetGlucoseStatistics)
+
+			// Sensor routes
+			r.Get("/sensor", s.handleGetSensor)
+			r.Get("/sensor/latest", s.handleGetLatestSensor)
+			r.Get("/sensor/stats", s.handleGetSensorStatistics)
+		})
+
+		// SSE endpoint (no logging middleware, no timeout)
+		// Logging is handled directly in the SSE handler
+		r.Get("/stream", s.handleSSEStream)
 	})
 
 	return r

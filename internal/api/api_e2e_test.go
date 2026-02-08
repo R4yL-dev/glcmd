@@ -51,17 +51,18 @@ func setupE2ETest(t *testing.T) (http.Handler, *gorm.DB) {
 	targetsRepo := repository.NewTargetsRepository(db)
 	uow := repository.NewUnitOfWork(db)
 
-	// Create services
-	glucoseService := service.NewGlucoseService(measurementRepo, slog.Default())
-	sensorService := service.NewSensorService(sensorRepo, uow, slog.Default())
+	// Create services (nil event broker for tests)
+	glucoseService := service.NewGlucoseService(measurementRepo, slog.Default(), nil)
+	sensorService := service.NewSensorService(sensorRepo, uow, slog.Default(), nil)
 	configService := service.NewConfigService(userRepo, deviceRepo, targetsRepo, slog.Default())
 
-	// Create API server
+	// Create API server (nil event broker for tests)
 	server := api.NewServer(
 		8080,
 		glucoseService,
 		sensorService,
 		configService,
+		nil, // eventBroker
 		func() daemon.HealthStatus {
 			return daemon.HealthStatus{
 				Status:            "healthy",

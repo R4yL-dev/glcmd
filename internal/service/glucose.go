@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/R4yL-dev/glcmd/internal/domain"
+	"github.com/R4yL-dev/glcmd/internal/events"
 	"github.com/R4yL-dev/glcmd/internal/persistence"
 	"github.com/R4yL-dev/glcmd/internal/repository"
 )
@@ -34,20 +35,24 @@ type MeasurementStats struct {
 
 // GlucoseServiceImpl implements GlucoseService.
 type GlucoseServiceImpl struct {
-	repo   repository.GlucoseRepository
-	retry  *persistence.RetryConfig
-	logger *slog.Logger
+	repo        repository.GlucoseRepository
+	retry       *persistence.RetryConfig
+	logger      *slog.Logger
+	eventBroker *events.Broker
 }
 
 // NewGlucoseService creates a new GlucoseService.
+// eventBroker is optional and can be nil (for tests or when SSE is not needed).
 func NewGlucoseService(
 	repo repository.GlucoseRepository,
 	logger *slog.Logger,
+	eventBroker *events.Broker,
 ) *GlucoseServiceImpl {
 	return &GlucoseServiceImpl{
-		repo:   repo,
-		retry:  persistence.DefaultRetryConfig(),
-		logger: logger,
+		repo:        repo,
+		retry:       persistence.DefaultRetryConfig(),
+		logger:      logger,
+		eventBroker: eventBroker,
 	}
 }
 
@@ -75,6 +80,14 @@ func (s *GlucoseServiceImpl) SaveMeasurement(ctx context.Context, m *domain.Gluc
 		"inserted", inserted,
 		"duration", duration,
 	)
+
+	// Publish event if new measurement was inserted
+	if s.eventBroker != nil && inserted {
+		s.eventBroker.Publish(events.Event{
+			Type: events.EventTypeGlucose,
+			Data: m,
+		})
+	}
 
 	return inserted, nil
 }

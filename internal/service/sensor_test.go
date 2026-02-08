@@ -111,7 +111,7 @@ func TestSensorService_HandleSensorChange_FirstSensor(t *testing.T) {
 
 	mockUoW := &MockUnitOfWork{}
 
-	service := NewSensorService(mockRepo, mockUoW, slog.Default())
+	service := NewSensorService(mockRepo, mockUoW, slog.Default(), nil)
 
 	now := time.Now().UTC()
 	newSensor := &domain.SensorConfig{
@@ -164,7 +164,7 @@ func TestSensorService_HandleSensorChange_SensorChanged(t *testing.T) {
 
 	mockUoW := &MockUnitOfWork{}
 
-	service := NewSensorService(mockRepo, mockUoW, slog.Default())
+	service := NewSensorService(mockRepo, mockUoW, slog.Default(), nil)
 
 	newSensor := &domain.SensorConfig{
 		SerialNumber: "NEW_SENSOR",
@@ -217,7 +217,7 @@ func TestSensorService_HandleSensorChange_SameSensor(t *testing.T) {
 
 	mockUoW := &MockUnitOfWork{}
 
-	service := NewSensorService(mockRepo, mockUoW, slog.Default())
+	service := NewSensorService(mockRepo, mockUoW, slog.Default(), nil)
 
 	sameSensor := &domain.SensorConfig{
 		SerialNumber: "SAME_SENSOR", // Same serial number
@@ -276,7 +276,7 @@ func TestSensorService_HandleSensorChange_TransactionRollback(t *testing.T) {
 		},
 	}
 
-	service := NewSensorService(mockRepo, mockUoW, slog.Default())
+	service := NewSensorService(mockRepo, mockUoW, slog.Default(), nil)
 
 	newSensor := &domain.SensorConfig{
 		SerialNumber: "NEW_SENSOR",

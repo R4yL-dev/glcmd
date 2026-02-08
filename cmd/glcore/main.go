@@ -13,6 +13,7 @@ import (
 	"github.com/R4yL-dev/glcmd/internal/config"
 	"github.com/R4yL-dev/glcmd/internal/daemon"
 	"github.com/R4yL-dev/glcmd/internal/domain"
+	"github.com/R4yL-dev/glcmd/internal/events"
 	"github.com/R4yL-dev/glcmd/internal/persistence"
 	"github.com/R4yL-dev/glcmd/internal/repository"
 	"github.com/R4yL-dev/glcmd/internal/service"
@@ -113,9 +114,14 @@ func main() {
 	// Create Unit of Work
 	uow := repository.NewUnitOfWork(database.DB())
 
-	// Create services
-	glucoseService := service.NewGlucoseService(glucoseRepo, slog.Default())
-	sensorService := service.NewSensorService(sensorRepo, uow, slog.Default())
+	// Create event broker for SSE streaming
+	eventBroker := events.NewBroker(10, slog.Default())
+	eventBroker.Start()
+	defer eventBroker.Stop()
+
+	// Create services with event broker
+	glucoseService := service.NewGlucoseService(glucoseRepo, slog.Default(), eventBroker)
+	sensorService := service.NewSensorService(sensorRepo, uow, slog.Default(), eventBroker)
 	configService := service.NewConfigService(userRepo, deviceRepo, targetsRepo, slog.Default())
 
 	// Convert daemon config
@@ -134,6 +140,7 @@ func main() {
 		glucoseService,
 		sensorService,
 		configService,
+		eventBroker,
 		func() daemon.HealthStatus {
 			return d.GetHealthStatus()
 		},

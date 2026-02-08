@@ -8,27 +8,32 @@ import (
 	"time"
 
 	"github.com/R4yL-dev/glcmd/internal/domain"
+	"github.com/R4yL-dev/glcmd/internal/events"
 	"github.com/R4yL-dev/glcmd/internal/persistence"
 	"github.com/R4yL-dev/glcmd/internal/repository"
 )
 
 // SensorServiceImpl implements SensorService.
 type SensorServiceImpl struct {
-	repo   repository.SensorRepository
-	uow    repository.UnitOfWork
-	logger *slog.Logger
+	repo        repository.SensorRepository
+	uow         repository.UnitOfWork
+	logger      *slog.Logger
+	eventBroker *events.Broker
 }
 
 // NewSensorService creates a new SensorService.
+// eventBroker is optional and can be nil (for tests or when SSE is not needed).
 func NewSensorService(
 	repo repository.SensorRepository,
 	uow repository.UnitOfWork,
 	logger *slog.Logger,
+	eventBroker *events.Broker,
 ) *SensorServiceImpl {
 	return &SensorServiceImpl{
-		repo:   repo,
-		uow:    uow,
-		logger: logger,
+		repo:        repo,
+		uow:        uow,
+		logger:      logger,
+		eventBroker: eventBroker,
 	}
 }
 
@@ -56,7 +61,9 @@ func (s *SensorServiceImpl) GetAllSensors(ctx context.Context) ([]*domain.Sensor
 //
 // All operations are executed within a transaction to ensure atomicity.
 func (s *SensorServiceImpl) HandleSensorChange(ctx context.Context, newSensor *domain.SensorConfig) error {
-	return s.uow.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	var isNewSensor bool
+
+	err := s.uow.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		// 1. Check for existing current sensor
 		currentSensor, err := s.repo.FindCurrent(txCtx)
 		if err != nil && !errors.Is(err, persistence.ErrNotFound) {
@@ -101,8 +108,9 @@ func (s *SensorServiceImpl) HandleSensorChange(ctx context.Context, newSensor *d
 			return fmt.Errorf("failed to save sensor: %w", err)
 		}
 
-		// Log only if it's a new sensor (not just an update)
-		if currentSensor == nil || currentSensor.SerialNumber != newSensor.SerialNumber {
+		// Track if this is a new sensor (not just an update)
+		isNewSensor = currentSensor == nil || currentSensor.SerialNumber != newSensor.SerialNumber
+		if isNewSensor {
 			s.logger.Info("new sensor detected",
 				"serialNumber", newSensor.SerialNumber,
 				"activation", newSensor.Activation,
@@ -113,6 +121,20 @@ func (s *SensorServiceImpl) HandleSensorChange(ctx context.Context, newSensor *d
 
 		return nil
 	})
+
+	if err != nil {
+		return err
+	}
+
+	// Publish event after transaction commits successfully
+	if s.eventBroker != nil && isNewSensor {
+		s.eventBroker.Publish(events.Event{
+			Type: events.EventTypeSensor,
+			Data: newSensor,
+		})
+	}
+
+	return nil
 }
 
 // SensorStats contains aggregated sensor lifecycle statistics

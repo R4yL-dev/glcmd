@@ -85,7 +85,7 @@ func TestGlucoseService_SaveMeasurement_Success(t *testing.T) {
 		},
 	}
 
-	service := NewGlucoseService(mockRepo, slog.Default())
+	service := NewGlucoseService(mockRepo, slog.Default(), nil)
 
 	measurement := &domain.GlucoseMeasurement{
 		Timestamp:      time.Now(),
@@ -123,7 +123,7 @@ func TestGlucoseService_SaveMeasurement_RetryOnTransientError(t *testing.T) {
 		},
 	}
 
-	service := NewGlucoseService(mockRepo, slog.Default())
+	service := NewGlucoseService(mockRepo, slog.Default(), nil)
 
 	measurement := &domain.GlucoseMeasurement{
 		Timestamp: time.Now(),
@@ -152,7 +152,7 @@ func TestGlucoseService_SaveMeasurement_FailureAfterRetries(t *testing.T) {
 		},
 	}
 
-	service := NewGlucoseService(mockRepo, slog.Default())
+	service := NewGlucoseService(mockRepo, slog.Default(), nil)
 
 	measurement := &domain.GlucoseMeasurement{
 		Timestamp: time.Now(),
@@ -181,7 +181,7 @@ func TestGlucoseService_GetLatestMeasurement_Success(t *testing.T) {
 		},
 	}
 
-	service := NewGlucoseService(mockRepo, slog.Default())
+	service := NewGlucoseService(mockRepo, slog.Default(), nil)
 
 	measurement, err := service.GetLatestMeasurement(context.Background())
 	if err != nil {
@@ -208,7 +208,7 @@ func TestGlucoseService_GetLatestMeasurement_NotFound(t *testing.T) {
 		},
 	}
 
-	service := NewGlucoseService(mockRepo, slog.Default())
+	service := NewGlucoseService(mockRepo, slog.Default(), nil)
 
 	measurement, err := service.GetLatestMeasurement(context.Background())
 	if err == nil {
@@ -237,7 +237,7 @@ func TestGlucoseService_GetAllMeasurements_Success(t *testing.T) {
 		},
 	}
 
-	service := NewGlucoseService(mockRepo, slog.Default())
+	service := NewGlucoseService(mockRepo, slog.Default(), nil)
 
 	measurements, err := service.GetAllMeasurements(context.Background())
 	if err != nil {
@@ -256,7 +256,7 @@ func TestGlucoseService_GetAllMeasurements_Empty(t *testing.T) {
 		},
 	}
 
-	service := NewGlucoseService(mockRepo, slog.Default())
+	service := NewGlucoseService(mockRepo, slog.Default(), nil)
 
 	measurements, err := service.GetAllMeasurements(context.Background())
 	if err != nil {
@@ -291,7 +291,7 @@ func TestGlucoseService_GetMeasurementsByTimeRange_Success(t *testing.T) {
 		},
 	}
 
-	service := NewGlucoseService(mockRepo, slog.Default())
+	service := NewGlucoseService(mockRepo, slog.Default(), nil)
 
 	measurements, err := service.GetMeasurementsByTimeRange(context.Background(), start, end)
 	if err != nil {
@@ -314,7 +314,7 @@ func TestGlucoseService_GetMeasurementsByTimeRange_Empty(t *testing.T) {
 		},
 	}
 
-	service := NewGlucoseService(mockRepo, slog.Default())
+	service := NewGlucoseService(mockRepo, slog.Default(), nil)
 
 	measurements, err := service.GetMeasurementsByTimeRange(context.Background(), start, end)
 	if err != nil {
@@ -337,7 +337,7 @@ func TestGlucoseService_SaveMeasurement_ValidatesType(t *testing.T) {
 		},
 	}
 
-	service := NewGlucoseService(mockRepo, slog.Default())
+	service := NewGlucoseService(mockRepo, slog.Default(), nil)
 
 	tests := []struct {
 		name string
