@@ -1,6 +1,6 @@
 # Architecture Documentation
 
-**Version**: 0.7.0
+**Version**: 0.7.1
 **Updated**: 2026-02-08
 **For**: glcmd glucose monitoring toolkit
 
@@ -226,9 +226,17 @@ Real-time event distribution using a pub/sub pattern.
 - Non-blocking publish prevents slow subscribers from affecting others
 - Channel buffer size configurable (default: 10 events)
 
-## Recent Changes (v0.7.0)
+## Recent Changes (v0.7.x)
 
-### Real-time Streaming (SSE)
+### Health & Metrics Enrichment (v0.7.1)
+- Health endpoint: `dataFresh` field indicating data freshness (stale after 2x fetch interval)
+- Health endpoint: `fetchInterval` field showing the configured polling interval
+- Health status degrades to `degraded` when data becomes stale
+- Metrics endpoint: `sse` section with enabled status and subscriber count
+- Metrics endpoint: `database` section with connection pool statistics
+- New `Stats()` method on `Database` for pool introspection
+
+### Real-time Streaming (v0.7.0)
 - New `internal/events` package with pub/sub event broker
 - SSE endpoint at `/v1/stream` for real-time event streaming
 - New `glcli watch` command for CLI streaming

@@ -1,7 +1,7 @@
 # Environment Variables
 
-**Version**: 0.5.0
-**Updated**: 2026-02-07
+**Version**: 0.7.1
+**Updated**: 2026-02-08
 
 ## Overview
 

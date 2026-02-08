@@ -5,6 +5,26 @@ All notable changes to glcmd are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.7.1] - 2026-02-08
+
+### Added
+- **Health**: `dataFresh` field indicating whether glucose data is current (stale after 2x fetch interval)
+- **Health**: `fetchInterval` field showing the configured polling interval
+- **Metrics**: `sse` section with `enabled` status and active `subscribers` count
+- **Metrics**: `database` section with connection pool statistics (open, in-use, idle, wait count/duration)
+
+### Changed
+- Health status degrades to `degraded` when data becomes stale (no successful fetch within 2x interval)
+
+## [0.7.0] - 2026-02-08
+
+### Added
+- **Real-time Streaming**: Server-Sent Events (SSE) endpoint at `GET /v1/stream`
+- **Event Broker**: Pub/sub event system for glucose and sensor changes
+- **CLI**: `glcli watch` command for streaming real-time events
+- **SSE Type Filtering**: `?types=glucose,sensor` query parameter for selective streaming
+- **Keepalive**: Automatic 30-second heartbeat for SSE connection health
+
 ## [0.6.0] - 2026-02-08
 
 ### Breaking Changes

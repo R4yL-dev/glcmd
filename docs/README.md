@@ -1,7 +1,7 @@
 # glcmd Documentation
 
-**Version**: 0.5.0
-**Updated**: 2026-02-07
+**Version**: 0.7.1
+**Updated**: 2026-02-08
 
 ## Overview
 
@@ -137,7 +137,7 @@ internal/cli (HTTP client + formatters)
 
 **Key Features**:
 - Two binaries: `glcore` (daemon) and `glcli` (CLI client)
-- Unified HTTP API server on port 8080 with 8 endpoints
+- Unified HTTP API server on port 8080 with 9 endpoints
 - CLI with Cobra subcommands, shell completion, and JSON output
 - SQLite with WAL mode for concurrent reads
 - Structured logging with configurable format and level

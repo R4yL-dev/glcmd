@@ -2,7 +2,7 @@
 
 ## Overview
 
-**Version**: 0.6.0
+**Version**: 0.7.1
 **Date**: 2026-02-08
 
 glcmd is a glucose monitoring toolkit for retrieving and monitoring blood glucose data from the LibreView API using LibreLinkUp follower account credentials. It consists of two binaries:
@@ -185,8 +185,8 @@ All data endpoints are versioned with the `/v1` prefix for API stability.
 ### Available Endpoints
 
 **Monitoring endpoints** (unversioned):
-- `GET /health` - Daemon and database health status
-- `GET /metrics` - Runtime metrics (uptime, memory, goroutines)
+- `GET /health` - Daemon and database health status with data freshness
+- `GET /metrics` - Runtime metrics (uptime, memory, goroutines, SSE, DB pool)
 
 **Data endpoints** (versioned):
 - `GET /v1/glucose/latest` - Most recent glucose reading
@@ -207,7 +207,10 @@ $ curl http://localhost:8080/health | jq
     "timestamp": "2026-01-03T02:33:12Z",
     "uptime": "1h16m25s",
     "consecutiveErrors": 0,
-    "lastFetchTime": "2026-01-03T02:31:47Z"
+    "lastFetchTime": "2026-01-03T02:31:47Z",
+    "databaseConnected": true,
+    "dataFresh": true,
+    "fetchInterval": "5m0s"
   }
 }
 
@@ -227,6 +230,17 @@ $ curl http://localhost:8080/metrics | jq
       "version": "go1.25.5",
       "os": "linux",
       "arch": "amd64"
+    },
+    "sse": {
+      "enabled": true,
+      "subscribers": 0
+    },
+    "database": {
+      "openConnections": 1,
+      "inUse": 0,
+      "idle": 1,
+      "waitCount": 0,
+      "waitDuration": "0s"
     }
   }
 }

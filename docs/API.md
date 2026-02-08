@@ -1,6 +1,6 @@
 # HTTP API Documentation
 
-**Version**: 0.7.0
+**Version**: 0.7.1
 **Updated**: 2026-02-08
 **Status**: Stable
 
@@ -88,19 +88,28 @@ Returns the daemon and database health status.
     "consecutiveErrors": 0,
     "lastFetchError": "",
     "lastFetchTime": "2025-01-03T10:29:45Z",
-    "databaseConnected": true
+    "databaseConnected": true,
+    "dataFresh": true,
+    "fetchInterval": "5m0s"
   }
 }
 ```
 
 **Status Values:**
-- `healthy` - All systems operational and database connected
-- `degraded` - Some errors but still functional (1-2 consecutive errors)
+- `healthy` - All systems operational, database connected, and data is fresh
+- `degraded` - Some errors but still functional (1-2 consecutive errors), or data is stale
 - `unhealthy` - Service experiencing issues (3+ consecutive errors) or database disconnected
 
 **Database Status:**
 - `databaseConnected: true` - Database is responsive
 - `databaseConnected: false` - Database connection failed (returns 503)
+
+**Data Freshness:**
+- `dataFresh: true` - Last successful fetch was within 2x the configured fetch interval
+- `dataFresh: false` - Data is stale (no successful fetch within 2x interval)
+- `fetchInterval` - The configured polling interval (e.g., `"5m0s"`)
+- When data becomes stale and status would otherwise be `healthy`, it degrades to `degraded`
+- If `lastFetchTime` is zero (no fetch yet), data is considered fresh
 
 **Example:**
 ```bash
@@ -134,10 +143,30 @@ Returns runtime metrics and system information.
     },
     "process": {
       "pid": 1234
+    },
+    "sse": {
+      "enabled": true,
+      "subscribers": 2
+    },
+    "database": {
+      "openConnections": 1,
+      "inUse": 0,
+      "idle": 1,
+      "waitCount": 0,
+      "waitDuration": "0s"
     }
   }
 }
 ```
+
+**Field Descriptions:**
+- `sse.enabled` - Whether the SSE event broker is active
+- `sse.subscribers` - Number of currently connected SSE subscribers
+- `database.openConnections` - Total number of open database connections
+- `database.inUse` - Number of connections currently in use
+- `database.idle` - Number of idle connections in the pool
+- `database.waitCount` - Total number of connections waited for
+- `database.waitDuration` - Total time blocked waiting for a new connection
 
 **Example:**
 ```bash
