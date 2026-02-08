@@ -376,10 +376,7 @@ Returns the current active sensor information with lifecycle details.
     "durationDays": 14,
     "daysRemaining": 6.3,
     "daysElapsed": 7.7,
-    "isActive": true,
-    "status": "active",
-    "isExpired": false,
-    "isUnresponsive": false
+    "status": "running"
   }
 }
 ```
@@ -392,14 +389,10 @@ Returns the current active sensor information with lifecycle details.
 - `lastMeasurementAt` - Timestamp of most recent measurement from this sensor (null if none)
 - `sensorType` - Sensor type code
 - `durationDays` - Expected sensor duration in days
-- `daysRemaining` - Days remaining until expiration (active sensors only)
-- `daysElapsed` - Days since activation
-- `actualDays` - Actual duration in days (ended sensors only)
-- `daysPastExpiry` - Days past expected expiration (expired sensors only)
-- `isActive` - Whether the sensor is currently active
-- `status` - Sensor status (`active`, `ended`, `expired`, `unresponsive`)
-- `isExpired` - Whether the sensor has passed its expected expiration
-- `isUnresponsive` - Whether the sensor has stopped providing measurements
+- `daysRemaining` - Days remaining until expiration (running sensors only)
+- `daysElapsed` - Days since activation (bounded by ExpiresAt for expired sensors)
+- `actualDays` - Actual duration in days (stopped sensors with EndedAt only)
+- `status` - Sensor status (`running`, `unresponsive`, `stopped`)
 
 **Example:**
 ```bash
@@ -437,10 +430,7 @@ Returns a paginated list of all sensors with optional date filters.
       "durationDays": 14,
       "daysElapsed": 12.8,
       "actualDays": 12.8,
-      "isActive": false,
-      "status": "ended",
-      "isExpired": false,
-      "isUnresponsive": false
+      "status": "stopped"
     }
   ],
   "pagination": {
@@ -489,7 +479,7 @@ If both `start` and `end` are omitted, returns all-time statistics.
     },
     "statistics": {
       "totalSensors": 5,
-      "endedSensors": 4,
+      "completedSensors": 4,
       "avgDuration": 13.2,
       "minDuration": 11.5,
       "maxDuration": 14.8,
@@ -504,10 +494,7 @@ If both `start` and `end` are omitted, returns all-time statistics.
       "durationDays": 14,
       "daysRemaining": 6.3,
       "daysElapsed": 7.7,
-      "isActive": true,
-      "status": "active",
-      "isExpired": false,
-      "isUnresponsive": false
+      "status": "running"
     }
   }
 }
@@ -516,7 +503,7 @@ If both `start` and `end` are omitted, returns all-time statistics.
 **Field Descriptions:**
 - `period` - Time period for the statistics (omitted for all-time queries)
 - `statistics.totalSensors` - Total number of sensors tracked
-- `statistics.endedSensors` - Number of completed (ended) sensors
+- `statistics.completedSensors` - Number of completed sensors
 - `statistics.avgDuration` - Average actual duration in days (ended sensors)
 - `statistics.minDuration` - Shortest sensor duration in days
 - `statistics.maxDuration` - Longest sensor duration in days

@@ -10,8 +10,15 @@ All notable changes to glcmd are documented here.
 - **Metrics**: `sse` section with `enabled` status and active `subscribers` count
 - **Metrics**: `database` section with connection pool statistics (open, in-use, idle, wait count/duration)
 
+### Breaking Changes
+- **Sensor status**: `"ended"` and `"expired"` statuses replaced by `"stopped"`
+- **Sensor response**: Removed fields `isActive`, `isExpired`, `isUnresponsive`, `daysPastExpiry`
+- **Sensor stats**: `endedSensors` renamed to `completedSensors`
+- **ElapsedDays**: Now bounded by `ExpiresAt` for expired sensors (no longer grows past sensor lifetime)
+
 ### Changed
 - Health status degrades to `degraded` when data becomes stale (no successful fetch within 2x interval)
+- Sensor dates in CLI now display in local timezone instead of UTC
 
 ## [0.7.0] - 2026-02-08
 
