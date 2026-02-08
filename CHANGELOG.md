@@ -5,6 +5,28 @@ All notable changes to glcmd are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.6.0] - 2026-02-08
+
+### Breaking Changes
+- **API**: `/v1/measurements` renamed to `/v1/glucose`
+- **API**: `/v1/measurements/latest` renamed to `/v1/glucose/latest`
+- **API**: `/v1/measurements/stats` renamed to `/v1/glucose/stats`
+- **API**: `/v1/sensors` renamed to `/v1/sensor` (singular, now returns paginated list)
+- **API**: `/v1/sensors/history` removed (merged into `/v1/sensor`)
+- **API**: `/v1/sensors/stats` renamed to `/v1/sensor/stats`
+- **CLI**: `--last` flag renamed to `--period` for `history` commands
+
+### Added
+- **API**: `GET /v1/sensor/latest` endpoint for current active sensor
+- **API**: `start`/`end` query parameters for `/v1/sensor/stats`
+- **CLI**: Dynamic period values (e.g., `--period 3d`, `--period 6w`, `--period 2m`)
+- **CLI**: `--period`, `--start`, `--end` flags for `sensor stats` command
+
+### Changed
+- Internal: `MeasurementRepository` renamed to `GlucoseRepository`
+- Internal: Centralized period parsing in `internal/utils/periodparser`
+- Internal: Unified API structure for glucose and sensor endpoints
+
 ## [0.5.0] - 2026-02-07
 
 ### Added

@@ -1,26 +1,26 @@
 # HTTP API Documentation
 
-**Version**: 0.5.0
-**Updated**: 2026-02-07
+**Version**: 0.6.0
+**Updated**: 2026-02-08
 **Status**: Stable
 
 `glcore` provides a unified HTTP API server on port 8080 (configurable via `GLCMD_API_PORT`). All endpoints return JSON responses with consistent formatting and pass through logging, recovery, and timeout middlewares.
 
 ## API Stability
 
-All endpoints in this documentation are stable and part of the 0.4.0 API contract. Breaking changes will be documented in [CHANGELOG.md](../CHANGELOG.md) and trigger a minor version bump.
+All endpoints in this documentation are stable and part of the 0.6.0 API contract. Breaking changes will be documented in [CHANGELOG.md](../CHANGELOG.md) and trigger a minor version bump.
 
 ## API Versioning
 
 **Data endpoints** are versioned using a URL prefix for API stability. The current version is `/v1`.
 
 **Versioned endpoints:**
-- `/v1/measurements`
-- `/v1/measurements/latest`
-- `/v1/measurements/stats`
-- `/v1/sensors`
-- `/v1/sensors/history`
-- `/v1/sensors/stats`
+- `/v1/glucose` - Paginated glucose measurements
+- `/v1/glucose/latest` - Most recent glucose reading
+- `/v1/glucose/stats` - Glucose statistics
+- `/v1/sensor` - Paginated sensor list
+- `/v1/sensor/latest` - Current active sensor
+- `/v1/sensor/stats` - Sensor lifecycle statistics
 
 **Unversioned endpoints** (monitoring):
 - `/health` - Health check
@@ -145,9 +145,9 @@ curl http://localhost:8080/metrics | jq
 
 ---
 
-### 3. Latest Measurement
+### 3. Latest Glucose
 
-**GET** `/v1/measurements/latest`
+**GET** `/v1/glucose/latest`
 
 Returns the most recent glucose measurement.
 
@@ -180,14 +180,14 @@ Returns the most recent glucose measurement.
 
 **Example:**
 ```bash
-curl http://localhost:8080/v1/measurements/latest | jq
+curl http://localhost:8080/v1/glucose/latest | jq
 ```
 
 ---
 
-### 4. Measurements List
+### 4. Glucose List
 
-**GET** `/v1/measurements`
+**GET** `/v1/glucose`
 
 Returns a paginated list of glucose measurements with optional filters.
 
@@ -227,26 +227,26 @@ Returns a paginated list of glucose measurements with optional filters.
 **Examples:**
 ```bash
 # Get first 50 measurements
-curl "http://localhost:8080/v1/measurements?limit=50" | jq
+curl "http://localhost:8080/v1/glucose?limit=50" | jq
 
 # Get measurements from last 24 hours
 START=$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%SZ)
 END=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-curl "http://localhost:8080/v1/measurements?start=$START&end=$END" | jq
+curl "http://localhost:8080/v1/glucose?start=$START&end=$END" | jq
 
 # Get only warning/critical measurements
-curl "http://localhost:8080/v1/measurements?color=2" | jq
-curl "http://localhost:8080/v1/measurements?color=3" | jq
+curl "http://localhost:8080/v1/glucose?color=2" | jq
+curl "http://localhost:8080/v1/glucose?color=3" | jq
 
 # Pagination example - get next page
-curl "http://localhost:8080/v1/measurements?limit=100&offset=100" | jq
+curl "http://localhost:8080/v1/glucose?limit=100&offset=100" | jq
 ```
 
 ---
 
-### 5. Statistics
+### 5. Glucose Statistics
 
-**GET** `/v1/measurements/stats`
+**GET** `/v1/glucose/stats`
 
 Returns glucose statistics for a specified time period, or all-time statistics if no date range is provided.
 
@@ -309,29 +309,29 @@ If both `start` and `end` are omitted, returns all-time statistics. If provided,
 **Examples:**
 ```bash
 # Get all-time statistics
-curl "http://localhost:8080/v1/measurements/stats" | jq
+curl "http://localhost:8080/v1/glucose/stats" | jq
 
 # Get statistics for last 7 days
 START=$(date -u -d '7 days ago' +%Y-%m-%dT%H:%M:%SZ)
 END=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-curl "http://localhost:8080/v1/measurements/stats?start=$START&end=$END" | jq
+curl "http://localhost:8080/v1/glucose/stats?start=$START&end=$END" | jq
 
 # Get statistics for a specific day
-curl "http://localhost:8080/v1/measurements/stats?start=2025-01-01T00:00:00Z&end=2025-01-01T23:59:59Z" | jq
+curl "http://localhost:8080/v1/glucose/stats?start=2025-01-01T00:00:00Z&end=2025-01-01T23:59:59Z" | jq
 
 # Get statistics for last 30 days
 START=$(date -u -d '30 days ago' +%Y-%m-%dT%H:%M:%SZ)
 END=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-curl "http://localhost:8080/v1/measurements/stats?start=$START&end=$END" | jq
+curl "http://localhost:8080/v1/glucose/stats?start=$START&end=$END" | jq
 ```
 
 ---
 
-### 6. Sensors
+### 6. Latest Sensor
 
-**GET** `/v1/sensors`
+**GET** `/v1/sensor/latest`
 
-Returns the current sensor information with lifecycle details.
+Returns the current active sensor information with lifecycle details.
 
 **Response:**
 ```json
@@ -373,14 +373,14 @@ Returns the current sensor information with lifecycle details.
 
 **Example:**
 ```bash
-curl http://localhost:8080/v1/sensors | jq
+curl http://localhost:8080/v1/sensor/latest | jq
 ```
 
 ---
 
-### 7. Sensor History
+### 7. Sensor List
 
-**GET** `/v1/sensors/history`
+**GET** `/v1/sensor`
 
 Returns a paginated list of all sensors with optional date filters.
 
@@ -425,25 +425,38 @@ Returns a paginated list of all sensors with optional date filters.
 **Examples:**
 ```bash
 # Get all sensors
-curl "http://localhost:8080/v1/sensors/history" | jq
+curl "http://localhost:8080/v1/sensor" | jq
 
 # Get sensors from last 6 months
 START=$(date -u -d '6 months ago' +%Y-%m-%dT%H:%M:%SZ)
-curl "http://localhost:8080/v1/sensors/history?start=$START" | jq
+curl "http://localhost:8080/v1/sensor?start=$START" | jq
 ```
 
 ---
 
 ### 8. Sensor Statistics
 
-**GET** `/v1/sensors/stats`
+**GET** `/v1/sensor/stats`
 
-Returns aggregated sensor lifecycle statistics.
+Returns aggregated sensor lifecycle statistics for a specified time period, or all-time statistics if no date range is provided.
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `start` | string (RFC3339) | No | Start of time range (filter sensors activated after this time) |
+| `end` | string (RFC3339) | No | End of time range (filter sensors activated before this time) |
+
+If both `start` and `end` are omitted, returns all-time statistics.
 
 **Response:**
 ```json
 {
   "data": {
+    "period": {
+      "start": "2025-01-01T00:00:00Z",
+      "end": "2025-12-31T23:59:59Z"
+    },
     "statistics": {
       "totalSensors": 5,
       "endedSensors": 4,
@@ -471,6 +484,7 @@ Returns aggregated sensor lifecycle statistics.
 ```
 
 **Field Descriptions:**
+- `period` - Time period for the statistics (omitted for all-time queries)
 - `statistics.totalSensors` - Total number of sensors tracked
 - `statistics.endedSensors` - Number of completed (ended) sensors
 - `statistics.avgDuration` - Average actual duration in days (ended sensors)
@@ -480,9 +494,15 @@ Returns aggregated sensor lifecycle statistics.
 - `statistics.avgDifference` - Average difference between actual and expected duration (negative = ended early)
 - `current` - Current active sensor information (null if none)
 
-**Example:**
+**Examples:**
 ```bash
-curl http://localhost:8080/v1/sensors/stats | jq
+# Get all-time sensor statistics
+curl http://localhost:8080/v1/sensor/stats | jq
+
+# Get sensor statistics for last 6 months
+START=$(date -u -d '6 months ago' +%Y-%m-%dT%H:%M:%SZ)
+END=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+curl "http://localhost:8080/v1/sensor/stats?start=$START&end=$END" | jq
 ```
 
 ---
@@ -548,33 +568,33 @@ curl -s "$BASE_URL/health" | jq
 echo -e "\n=== Metrics ==="
 curl -s "$BASE_URL/metrics" | jq
 
-# Get latest measurement
-echo -e "\n=== Latest Measurement ==="
-curl -s "$BASE_URL/v1/measurements/latest" | jq
+# Get latest glucose
+echo -e "\n=== Latest Glucose ==="
+curl -s "$BASE_URL/v1/glucose/latest" | jq
 
 # Get last 10 measurements
 echo -e "\n=== Last 10 Measurements ==="
-curl -s "$BASE_URL/v1/measurements?limit=10" | jq
+curl -s "$BASE_URL/v1/glucose?limit=10" | jq
 
 # Get all-time statistics
 echo -e "\n=== All-Time Statistics ==="
-curl -s "$BASE_URL/v1/measurements/stats" | jq
+curl -s "$BASE_URL/v1/glucose/stats" | jq
 
 # Get 24h statistics
 START=$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%SZ)
 END=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 echo -e "\n=== 24h Statistics ==="
-curl -s "$BASE_URL/v1/measurements/stats?start=$START&end=$END" | jq
+curl -s "$BASE_URL/v1/glucose/stats?start=$START&end=$END" | jq
 
 # Get current sensor
 echo -e "\n=== Current Sensor ==="
-curl -s "$BASE_URL/v1/sensors" | jq
+curl -s "$BASE_URL/v1/sensor/latest" | jq
 
 # Get sensor history
 echo -e "\n=== Sensor History ==="
-curl -s "$BASE_URL/v1/sensors/history" | jq
+curl -s "$BASE_URL/v1/sensor" | jq
 
 # Get sensor stats
 echo -e "\n=== Sensor Statistics ==="
-curl -s "$BASE_URL/v1/sensors/stats" | jq
+curl -s "$BASE_URL/v1/sensor/stats" | jq
 ```

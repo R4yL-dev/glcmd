@@ -2,8 +2,8 @@
 
 ## Overview
 
-**Version**: 0.5.0
-**Date**: 2026-02-07
+**Version**: 0.6.0
+**Date**: 2026-02-08
 
 glcmd is a glucose monitoring toolkit for retrieving and monitoring blood glucose data from the LibreView API using LibreLinkUp follower account credentials. It consists of two binaries:
 
@@ -145,7 +145,7 @@ glcli queries data from a running glcore instance:
 ./bin/glcli stats --period all
 
 # Glucose history
-./bin/glcli history --last 24h
+./bin/glcli history --period 24h
 ./bin/glcli history --start 2026-01-01 --end 2026-01-31
 
 # Current sensor info
@@ -183,12 +183,12 @@ All data endpoints are versioned with the `/v1` prefix for API stability.
 - `GET /metrics` - Runtime metrics (uptime, memory, goroutines)
 
 **Data endpoints** (versioned):
-- `GET /v1/measurements/latest` - Most recent glucose reading
-- `GET /v1/measurements` - Paginated measurements with filters
-- `GET /v1/measurements/stats` - Statistics with time-in-range analysis (all-time if no date range)
-- `GET /v1/sensors` - Current sensor information
-- `GET /v1/sensors/history` - Paginated sensor history with date filters
-- `GET /v1/sensors/stats` - Sensor lifecycle statistics
+- `GET /v1/glucose/latest` - Most recent glucose reading
+- `GET /v1/glucose` - Paginated glucose measurements with filters
+- `GET /v1/glucose/stats` - Glucose statistics with time-in-range analysis
+- `GET /v1/sensor/latest` - Current active sensor information
+- `GET /v1/sensor` - Paginated sensor list with date filters
+- `GET /v1/sensor/stats` - Sensor lifecycle statistics with date filters
 
 ### Example API Calls
 
@@ -226,7 +226,7 @@ $ curl http://localhost:8080/metrics | jq
 }
 
 # Latest glucose measurement
-$ curl http://localhost:8080/v1/measurements/latest | jq
+$ curl http://localhost:8080/v1/glucose/latest | jq
 {
   "data": {
     "timestamp": "2026-01-03T02:31:27Z",
@@ -240,7 +240,7 @@ $ curl http://localhost:8080/v1/measurements/latest | jq
 }
 
 # Sensor information
-$ curl http://localhost:8080/v1/sensors | jq
+$ curl http://localhost:8080/v1/sensor/latest | jq
 {
   "data": {
     "serialNumber": "ABC123XYZ",
@@ -258,12 +258,12 @@ $ curl http://localhost:8080/v1/sensors | jq
 }
 
 # All-time statistics
-$ curl http://localhost:8080/v1/measurements/stats | jq
+$ curl http://localhost:8080/v1/glucose/stats | jq
 
 # Statistics for last 7 days
 START=$(date -u -d '7 days ago' +%Y-%m-%dT%H:%M:%SZ)
 END=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-curl "http://localhost:8080/v1/measurements/stats?start=$START&end=$END" | jq
+curl "http://localhost:8080/v1/glucose/stats?start=$START&end=$END" | jq
 ```
 
 For complete API documentation with all parameters and response formats, see [API Reference](docs/API.md).
