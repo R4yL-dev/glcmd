@@ -35,7 +35,7 @@ import (
 
 // Dynamic polling constants
 const (
-	defaultMeasurementInterval = 2 * time.Minute  // Expected interval between sensor measurements
+	defaultMeasurementInterval = 30 * time.Second // Initial short interval for sensor cadence discovery
 	safetyBuffer               = 5 * time.Second   // Buffer after expected measurement time
 	retryDelay                 = 15 * time.Second  // Delay before retry on duplicate
 	maxPollRetries             = 4                  // Max retries before fallback to full interval
