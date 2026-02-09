@@ -5,8 +5,7 @@ All notable changes to glcmd are documented here.
 ## [0.7.1] - 2026-02-08
 
 ### Added
-- **Health**: `dataFresh` field indicating whether glucose data is current (stale after 2x fetch interval)
-- **Health**: `fetchInterval` field showing the configured polling interval
+- **Health**: `dataFresh` field indicating whether glucose data is current (stale after 2x measurement interval)
 - **Metrics**: `sse` section with `enabled` status and active `subscribers` count
 - **Metrics**: `database` section with connection pool statistics (open, in-use, idle, wait count/duration)
 

@@ -124,11 +124,8 @@ func main() {
 	sensorService := service.NewSensorService(sensorRepo, uow, slog.Default(), eventBroker)
 	configService := service.NewConfigService(userRepo, deviceRepo, targetsRepo, slog.Default())
 
-	// Convert daemon config
-	daemonConfig := cfg.Daemon.ToDaemonConfig()
-
 	// Create daemon
-	d, err := daemon.New(glucoseService, sensorService, configService, daemonConfig, cfg.Credentials.Email, cfg.Credentials.Password)
+	d, err := daemon.New(glucoseService, sensorService, configService, cfg.Credentials.Email, cfg.Credentials.Password)
 	if err != nil {
 		slog.Error("failed to create daemon", "error", err)
 		os.Exit(1)

@@ -89,8 +89,7 @@ Returns the daemon and database health status.
     "lastFetchError": "",
     "lastFetchTime": "2025-01-03T10:29:45Z",
     "databaseConnected": true,
-    "dataFresh": true,
-    "fetchInterval": "5m0s"
+    "dataFresh": true
   }
 }
 ```
@@ -105,9 +104,8 @@ Returns the daemon and database health status.
 - `databaseConnected: false` - Database connection failed (returns 503)
 
 **Data Freshness:**
-- `dataFresh: true` - Last successful fetch was within 2x the configured fetch interval
+- `dataFresh: true` - Last successful fetch was within 2x the measurement interval (2 minutes)
 - `dataFresh: false` - Data is stale (no successful fetch within 2x interval)
-- `fetchInterval` - The configured polling interval (e.g., `"5m0s"`)
 - When data becomes stale and status would otherwise be `healthy`, it degrades to `degraded`
 - If `lastFetchTime` is zero (no fetch yet), data is considered fresh
 

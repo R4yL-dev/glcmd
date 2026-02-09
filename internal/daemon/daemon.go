@@ -1,22 +1,11 @@
 // Package daemon implements the continuous background process that fetches
-// glucose data from the LibreView API using adaptive polling.
+// glucose data from the LibreView API at a fixed 1-minute cadence.
 //
 // The daemon runs a main loop that:
-//   - Fetches data using an adaptive timer based on measurement cadence
+//   - Fetches data using a fixed timer matching the Libre 3 Plus measurement cadence
 //   - Stores all received data in the configured storage backend
 //   - Handles graceful shutdown via context cancellation
 //   - Logs all operations and errors
-//
-// Usage:
-//
-//	storage := memory.New()
-//	d, err := daemon.New(storage, 5*time.Minute, "email@example.com", "password")
-//	if err != nil {
-//	    log.Fatal(err)
-//	}
-//	if err := d.Run(); err != nil {
-//	    log.Fatal(err)
-//	}
 package daemon
 
 import (
@@ -33,21 +22,19 @@ import (
 	"github.com/R4yL-dev/glcmd/internal/utils/timeparser"
 )
 
-// Dynamic polling constants
+// Polling constants for Libre 3 Plus (fixed 1-minute measurement cadence)
 const (
-	defaultMeasurementInterval = 30 * time.Second // Initial short interval for sensor cadence discovery
-	safetyBuffer               = 5 * time.Second   // Buffer after expected measurement time
-	retryDelay                 = 15 * time.Second  // Delay before retry on duplicate
-	maxPollRetries             = 4                  // Max retries before fallback to full interval
-	minMeasurementInterval     = 30 * time.Second  // Ignore intervals below this
-	maxMeasurementInterval     = 10 * time.Minute  // Ignore intervals above this
+	measurementInterval = 1 * time.Minute  // Libre 3 Plus: fixed 1-minute cadence
+	safetyBuffer        = 1 * time.Second  // Buffer after expected measurement time
+	retryDelay          = 5 * time.Second  // Delay before retry if measurement not yet available
+	maxPollRetries      = 4                // Max retries before falling back to full interval
 )
 
 // Daemon represents the background service that continuously fetches
 // glucose data from the LibreView API.
 //
 // It manages:
-//   - An adaptive timer for polling based on measurement cadence
+//   - A fixed-cadence timer for polling (1 minute + safety buffer)
 //   - Context-based lifecycle management for graceful shutdown
 //   - Business logic services for persisting fetched data
 //   - Authentication with LibreView API
@@ -58,7 +45,6 @@ type Daemon struct {
 	ctx                  context.Context
 	cancel               context.CancelFunc
 	timer                *time.Timer
-	config               *Config
 	client               *libreclient.Client
 	email                string
 	password             string
@@ -72,8 +58,6 @@ type Daemon struct {
 	startTime            time.Time // Daemon start time
 	lastTargets          *domain.GlucoseTargets // Cache to avoid redundant saves
 	sensorExpiresAt      time.Time              // Expiration time of the current sensor
-	lastFactoryTimestamp time.Time              // FactoryTS of the last inserted measurement
-	estimatedInterval    time.Duration          // Estimated interval between measurements
 	retryCount           int                    // Consecutive retry counter for duplicates
 }
 
@@ -83,7 +67,6 @@ type Daemon struct {
 //   - glucoseService: Service for glucose measurement business logic
 //   - sensorService: Service for sensor management business logic
 //   - configService: Service for configuration management
-//   - config: Daemon configuration (intervals, emojis, etc.)
 //   - email: LibreView email for authentication
 //   - password: LibreView password for authentication
 //
@@ -93,7 +76,6 @@ func New(
 	glucoseService service.GlucoseService,
 	sensorService service.SensorService,
 	configService service.ConfigService,
-	config *Config,
 	email string,
 	password string,
 ) (*Daemon, error) {
@@ -102,9 +84,6 @@ func New(
 	}
 	if password == "" {
 		return nil, fmt.Errorf("password cannot be empty")
-	}
-	if config == nil {
-		return nil, fmt.Errorf("config cannot be nil")
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -115,14 +94,10 @@ func New(
 		configService:        configService,
 		ctx:                  ctx,
 		cancel:               cancel,
-		config:               config,
 		client:               libreclient.NewClient(nil),
 		email:                email,
 		password:             password,
-		consecutiveErrors:    0,
 		maxConsecutiveErrors: 5, // Alert after 5 consecutive errors
-		lastFetchError:       "",
-		lastFetchTime:        time.Time{},
 		startTime:            time.Now(),
 	}, nil
 }
@@ -135,7 +110,7 @@ func New(
 // The main loop:
 //   - Authenticates with LibreView API
 //   - Performs an initial fetch to populate historical data (12h)
-//   - Starts a ticker for periodic fetches at the configured interval
+//   - Polls every ~61s (1m measurement cadence + 1s safety buffer)
 //   - Waits for context cancellation to stop gracefully
 //
 // Returns an error if the daemon cannot start or encounters a fatal error.
@@ -152,28 +127,19 @@ func (d *Daemon) Run() error {
 		return fmt.Errorf("initial fetch failed: %w", err)
 	}
 
-	// Step 3: Start adaptive timer for polling
-	d.estimatedInterval = defaultMeasurementInterval
-	initialWait := d.config.FetchInterval
-	if !d.lastFactoryTimestamp.IsZero() {
-		// We already know when the last measurement was taken, schedule smartly
-		nextExpected := d.lastFactoryTimestamp.Add(d.estimatedInterval)
-		initialWait = time.Until(nextExpected) + safetyBuffer
-		if initialWait <= 0 {
-			initialWait = retryDelay
-		}
-	}
+	// Step 3: Start polling timer
+	initialWait := measurementInterval + safetyBuffer
 	d.timer = time.NewTimer(initialWait)
 	defer d.timer.Stop()
 
 	slog.Info("ready", "nextPollIn", initialWait)
 
-	// Step 4: Main loop - fetch and adapt polling interval
+	// Step 4: Main loop - fetch and schedule next poll
 	for {
 		select {
 		case <-d.timer.C:
 			start := time.Now()
-			inserted, factoryTS, err := d.fetch()
+			inserted, err := d.fetch()
 			if err != nil {
 				d.consecutiveErrors++
 				d.lastFetchError = err.Error()
@@ -191,8 +157,8 @@ func (d *Daemon) Run() error {
 					)
 				}
 
-				// On error, fall back to configured interval
-				d.timer.Reset(d.config.FetchInterval)
+				// On error, fall back to measurement interval
+				d.timer.Reset(measurementInterval)
 			} else {
 				duration := time.Since(start)
 				if d.consecutiveErrors > 0 {
@@ -204,8 +170,7 @@ func (d *Daemon) Run() error {
 
 				slog.Info("measurement fetched", "inserted", inserted, "duration", duration)
 
-				// Schedule next poll based on measurement timing
-				d.scheduleNextPoll(inserted, factoryTS)
+				d.scheduleNextPoll(inserted)
 			}
 
 		case <-d.ctx.Done():
@@ -227,7 +192,7 @@ func (d *Daemon) GetHealthStatus() HealthStatus {
 	}
 
 	// Check data freshness: fresh if no fetch yet (zero time) or last fetch within 2x interval
-	dataFresh := d.lastFetchTime.IsZero() || time.Since(d.lastFetchTime) < 2*d.config.FetchInterval
+	dataFresh := d.lastFetchTime.IsZero() || time.Since(d.lastFetchTime) < 2*measurementInterval
 
 	// Degrade status if data is stale (but don't upgrade from unhealthy)
 	if !dataFresh && status == "healthy" {
@@ -249,7 +214,6 @@ func (d *Daemon) GetHealthStatus() HealthStatus {
 		LastFetchTime:     d.lastFetchTime,
 		DataFresh:         dataFresh,
 		SensorExpired:     sensorExpired,
-		FetchInterval:     d.config.FetchInterval.String(),
 	}
 }
 
@@ -265,7 +229,6 @@ type HealthStatus struct {
 	DatabaseConnected bool      `json:"databaseConnected"`
 	DataFresh         bool      `json:"dataFresh"`
 	SensorExpired     bool      `json:"sensorExpired"`
-	FetchInterval     string    `json:"fetchInterval"`
 }
 
 // Stop initiates a graceful shutdown of the daemon.
@@ -325,12 +288,8 @@ func (d *Daemon) initialFetch() error {
 	slog.Debug("patient ID obtained", "patientID", logger.RedactSensitive(d.patientID))
 
 	// Store current measurement from /connections
-	inserted, factoryTS, err := d.storeCurrentMeasurement(&connectionsResp.Data[0].GlucoseMeasurement)
-	if err != nil {
+	if _, err := d.storeCurrentMeasurement(&connectionsResp.Data[0].GlucoseMeasurement); err != nil {
 		return fmt.Errorf("failed to store current measurement: %w", err)
-	}
-	if inserted && !factoryTS.IsZero() {
-		d.lastFactoryTimestamp = factoryTS
 	}
 
 	// Now fetch historical data from /graph
@@ -374,11 +333,9 @@ func (d *Daemon) initialFetch() error {
 }
 
 // fetch retrieves the latest glucose data from /connections.
-// Used for periodic updates (every 2 minutes).
-// Returns (inserted, factoryTimestamp, error): inserted indicates if a new measurement was stored,
-// factoryTimestamp is the factory timestamp of the measurement.
+// Returns (inserted, error): inserted indicates if a new measurement was stored.
 // If authentication fails (401), automatically re-authenticates with retry logic.
-func (d *Daemon) fetch() (bool, time.Time, error) {
+func (d *Daemon) fetch() (bool, error) {
 	ctx, cancel := context.WithTimeout(d.ctx, 30*time.Second)
 	defer cancel()
 
@@ -418,7 +375,7 @@ func (d *Daemon) fetch() (bool, time.Time, error) {
 				connectionsResp, err = d.client.GetConnections(ctx, d.token, d.accountID)
 				if err != nil {
 					slog.Error("failed to get connections after re-authentication", "error", err)
-					return false, time.Time{}, fmt.Errorf("failed to get connections after re-auth: %w", err)
+					return false, fmt.Errorf("failed to get connections after re-auth: %w", err)
 				}
 
 				slog.Info("re-authentication successful, fetch completed")
@@ -428,24 +385,24 @@ func (d *Daemon) fetch() (bool, time.Time, error) {
 			// If all retry attempts failed
 			if lastErr != nil && connectionsResp == nil {
 				slog.Error("re-authentication failed after all retries", "attempts", maxRetries, "error", lastErr)
-				return false, time.Time{}, fmt.Errorf("re-authentication failed after %d attempts: %w", maxRetries, lastErr)
+				return false, fmt.Errorf("re-authentication failed after %d attempts: %w", maxRetries, lastErr)
 			}
 		} else {
 			slog.Error("failed to get connections during periodic fetch", "error", err)
-			return false, time.Time{}, fmt.Errorf("failed to get connections: %w", err)
+			return false, fmt.Errorf("failed to get connections: %w", err)
 		}
 	}
 
 	if len(connectionsResp.Data) == 0 {
-		return false, time.Time{}, fmt.Errorf("no patient data in connections response")
+		return false, fmt.Errorf("no patient data in connections response")
 	}
 
 	gm := &connectionsResp.Data[0].GlucoseMeasurement
 
 	// Store the measurement
-	inserted, factoryTS, err := d.storeCurrentMeasurement(gm)
+	inserted, err := d.storeCurrentMeasurement(gm)
 	if err != nil {
-		return false, time.Time{}, err
+		return false, err
 	}
 
 	// Debug: log all measurement data
@@ -468,11 +425,11 @@ func (d *Daemon) fetch() (bool, time.Time, error) {
 	// Store glucose targets
 	d.storeTargets(connectionsResp)
 
-	return inserted, factoryTS, nil
+	return inserted, nil
 }
 
 // storeCurrentMeasurement stores a current measurement (from /connections).
-// Returns (inserted, factoryTimestamp, error).
+// Returns (inserted, error).
 func (d *Daemon) storeCurrentMeasurement(gm *struct {
 	ValueInMgPerDl   int     `json:"ValueInMgPerDl"`
 	Value            float64 `json:"Value"`
@@ -484,15 +441,15 @@ func (d *Daemon) storeCurrentMeasurement(gm *struct {
 	Timestamp        string  `json:"Timestamp"`
 	IsHigh           bool    `json:"isHigh"`
 	IsLow            bool    `json:"isLow"`
-}) (bool, time.Time, error) {
+}) (bool, error) {
 	factoryTimestamp, err := timeparser.ParseLibreViewTimestamp(gm.FactoryTimestamp)
 	if err != nil {
-		return false, time.Time{}, fmt.Errorf("failed to parse factory timestamp: %w", err)
+		return false, fmt.Errorf("failed to parse factory timestamp: %w", err)
 	}
 
 	timestamp, err := timeparser.ParseLibreViewTimestamp(gm.Timestamp)
 	if err != nil {
-		return false, time.Time{}, fmt.Errorf("failed to parse timestamp: %w", err)
+		return false, fmt.Errorf("failed to parse timestamp: %w", err)
 	}
 
 	trendArrow := gm.TrendArrow
@@ -520,7 +477,7 @@ func (d *Daemon) storeCurrentMeasurement(gm *struct {
 
 	inserted, err := d.glucoseService.SaveMeasurement(ctx, measurement)
 	if err != nil {
-		return false, time.Time{}, err
+		return false, err
 	}
 
 	// Update LastMeasurementAt on the current sensor
@@ -528,7 +485,7 @@ func (d *Daemon) storeCurrentMeasurement(gm *struct {
 		slog.Warn("failed to update sensor LastMeasurementAt", "error", err)
 	}
 
-	return inserted, factoryTimestamp, nil
+	return inserted, nil
 }
 
 // storeHistoricalMeasurement stores a historical measurement (from /graph).
@@ -666,45 +623,24 @@ func (d *Daemon) storeTargets(resp *libreclient.ConnectionsResponse) {
 	d.lastTargets = targets
 }
 
-// scheduleNextPoll adapts the polling timer based on measurement timing.
-// If a new measurement was inserted, it estimates when the next one will appear.
-// If a duplicate was received, it retries after a short delay.
-func (d *Daemon) scheduleNextPoll(inserted bool, factoryTS time.Time) {
-	if inserted && !factoryTS.IsZero() {
-		// New measurement inserted — estimate next poll time
-		if !d.lastFactoryTimestamp.IsZero() {
-			interval := factoryTS.Sub(d.lastFactoryTimestamp)
-			if interval >= minMeasurementInterval && interval <= maxMeasurementInterval {
-				d.estimatedInterval = interval
-				slog.Debug("measurement interval updated", "interval", d.estimatedInterval)
-			}
-		}
-
-		d.lastFactoryTimestamp = factoryTS
+// scheduleNextPoll schedules the next polling timer.
+// If a new measurement was inserted, waits for the next expected measurement.
+// If a duplicate was received, retries after a short delay.
+func (d *Daemon) scheduleNextPoll(inserted bool) {
+	if inserted {
 		d.retryCount = 0
-
-		// Schedule next poll: factoryTS + estimatedInterval - now + safetyBuffer
-		nextExpected := factoryTS.Add(d.estimatedInterval)
-		waitDuration := time.Until(nextExpected) + safetyBuffer
-
-		if waitDuration <= 0 {
-			// We're already past the expected time, poll soon
-			waitDuration = retryDelay
-		}
-
+		waitDuration := measurementInterval + safetyBuffer
 		d.timer.Reset(waitDuration)
 		slog.Info("next poll scheduled", "in", waitDuration, "at", time.Now().Add(waitDuration).Format("15:04:05"))
 	} else {
-		// Duplicate measurement — retry or fallback
 		d.retryCount++
-
 		if d.retryCount <= maxPollRetries {
 			d.timer.Reset(retryDelay)
 			slog.Debug("duplicate measurement, retrying", "retryCount", d.retryCount, "retryIn", retryDelay)
 		} else {
-			d.timer.Reset(d.config.FetchInterval)
+			d.timer.Reset(measurementInterval)
 			d.retryCount = 0
-			slog.Warn("max retries reached, falling back", "fallbackInterval", d.config.FetchInterval)
+			slog.Warn("max retries reached, falling back", "fallbackInterval", measurementInterval)
 		}
 	}
 }

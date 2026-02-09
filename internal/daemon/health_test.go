@@ -8,9 +8,7 @@ import (
 
 func TestGetHealthStatus_Healthy(t *testing.T) {
 	// Create daemon with mock services (nil is OK for health status test)
-	config := DefaultConfig()
 	d := &Daemon{
-		config:               config,
 		ctx:                  context.Background(),
 		consecutiveErrors:    0,
 		maxConsecutiveErrors: 5,
@@ -40,16 +38,10 @@ func TestGetHealthStatus_Healthy(t *testing.T) {
 	if !status.DataFresh {
 		t.Error("expected DataFresh = true")
 	}
-
-	if status.FetchInterval != "2m0s" {
-		t.Errorf("expected FetchInterval = 2m0s, got %s", status.FetchInterval)
-	}
 }
 
 func TestGetHealthStatus_Degraded(t *testing.T) {
-	config := DefaultConfig()
 	d := &Daemon{
-		config:               config,
 		ctx:                  context.Background(),
 		consecutiveErrors:    3, // Between 0 and max
 		maxConsecutiveErrors: 5,
@@ -72,15 +64,13 @@ func TestGetHealthStatus_Degraded(t *testing.T) {
 		t.Errorf("expected LastFetchError = 'network timeout', got %s", status.LastFetchError)
 	}
 
-	if !status.DataFresh {
-		t.Error("expected DataFresh = true (3m < 2x2m)")
+	if status.DataFresh {
+		t.Error("expected DataFresh = false (3m > 2x1m)")
 	}
 }
 
 func TestGetHealthStatus_Unhealthy(t *testing.T) {
-	config := DefaultConfig()
 	d := &Daemon{
-		config:               config,
 		ctx:                  context.Background(),
 		consecutiveErrors:    5, // Equal to max
 		maxConsecutiveErrors: 5,
@@ -104,14 +94,12 @@ func TestGetHealthStatus_Unhealthy(t *testing.T) {
 	}
 
 	if status.DataFresh {
-		t.Error("expected DataFresh = false (30m > 2x2m)")
+		t.Error("expected DataFresh = false (30m > 2x1m)")
 	}
 }
 
 func TestGetHealthStatus_UnhealthyAboveMax(t *testing.T) {
-	config := DefaultConfig()
 	d := &Daemon{
-		config:               config,
 		ctx:                  context.Background(),
 		consecutiveErrors:    10, // Above max
 		maxConsecutiveErrors: 5,
@@ -131,9 +119,7 @@ func TestGetHealthStatus_UnhealthyAboveMax(t *testing.T) {
 }
 
 func TestGetHealthStatus_TimestampPresent(t *testing.T) {
-	config := DefaultConfig()
 	d := &Daemon{
-		config:               config,
 		ctx:                  context.Background(),
 		consecutiveErrors:    0,
 		maxConsecutiveErrors: 5,
@@ -151,10 +137,8 @@ func TestGetHealthStatus_TimestampPresent(t *testing.T) {
 }
 
 func TestGetHealthStatus_UptimeCalculation(t *testing.T) {
-	config := DefaultConfig()
 	startTime := time.Now().Add(-1 * time.Hour)
 	d := &Daemon{
-		config:               config,
 		ctx:                  context.Background(),
 		consecutiveErrors:    0,
 		maxConsecutiveErrors: 5,
@@ -176,8 +160,6 @@ func TestGetHealthStatus_UptimeCalculation(t *testing.T) {
 }
 
 func TestGetHealthStatus_EdgeCaseBoundary(t *testing.T) {
-	config := DefaultConfig()
-
 	tests := []struct {
 		name              string
 		consecutiveErrors int
@@ -195,7 +177,6 @@ func TestGetHealthStatus_EdgeCaseBoundary(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			d := &Daemon{
-				config:               config,
 				ctx:                  context.Background(),
 				consecutiveErrors:    tt.consecutiveErrors,
 				maxConsecutiveErrors: tt.maxErrors,
@@ -212,19 +193,13 @@ func TestGetHealthStatus_EdgeCaseBoundary(t *testing.T) {
 			if !status.DataFresh {
 				t.Error("expected DataFresh = true for zero lastFetchTime")
 			}
-
-			if status.FetchInterval != "2m0s" {
-				t.Errorf("expected FetchInterval = 2m0s, got %s", status.FetchInterval)
-			}
 		})
 	}
 }
 
 func TestGetHealthStatus_LastFetchTimePreserved(t *testing.T) {
-	config := DefaultConfig()
-	lastFetch := time.Now().Add(-3 * time.Minute) // Within 2x2m, so still fresh
+	lastFetch := time.Now().Add(-90 * time.Second) // Within 2x1m = 2m
 	d := &Daemon{
-		config:               config,
 		ctx:                  context.Background(),
 		consecutiveErrors:    0,
 		maxConsecutiveErrors: 5,
@@ -240,14 +215,11 @@ func TestGetHealthStatus_LastFetchTimePreserved(t *testing.T) {
 }
 
 func TestGetHealthStatus_DataFresh(t *testing.T) {
-	config := DefaultConfig() // FetchInterval = 2m
-
 	d := &Daemon{
-		config:               config,
 		ctx:                  context.Background(),
 		consecutiveErrors:    0,
 		maxConsecutiveErrors: 5,
-		lastFetchTime:        time.Now().Add(-3 * time.Minute), // 3m < 2x2m = 4m
+		lastFetchTime:        time.Now().Add(-90 * time.Second), // 90s < 2x1m = 2m
 		startTime:            time.Now().Add(-1 * time.Hour),
 	}
 
@@ -258,19 +230,16 @@ func TestGetHealthStatus_DataFresh(t *testing.T) {
 	}
 
 	if !status.DataFresh {
-		t.Error("expected DataFresh = true (3m < 4m)")
+		t.Error("expected DataFresh = true (90s < 2m)")
 	}
 }
 
 func TestGetHealthStatus_DataStale_DegradedFromHealthy(t *testing.T) {
-	config := DefaultConfig() // FetchInterval = 2m
-
 	d := &Daemon{
-		config:               config,
 		ctx:                  context.Background(),
 		consecutiveErrors:    0, // No errors, would be healthy
 		maxConsecutiveErrors: 5,
-		lastFetchTime:        time.Now().Add(-15 * time.Minute), // 15m > 2x2m = 4m
+		lastFetchTime:        time.Now().Add(-15 * time.Minute), // 15m > 2x1m = 2m
 		startTime:            time.Now().Add(-1 * time.Hour),
 	}
 
@@ -281,15 +250,12 @@ func TestGetHealthStatus_DataStale_DegradedFromHealthy(t *testing.T) {
 	}
 
 	if status.DataFresh {
-		t.Error("expected DataFresh = false (15m > 4m)")
+		t.Error("expected DataFresh = false (15m > 2m)")
 	}
 }
 
 func TestGetHealthStatus_DataStale_RemainsUnhealthy(t *testing.T) {
-	config := DefaultConfig() // FetchInterval = 2m
-
 	d := &Daemon{
-		config:               config,
 		ctx:                  context.Background(),
 		consecutiveErrors:    5, // At max -> unhealthy
 		maxConsecutiveErrors: 5,
@@ -306,15 +272,12 @@ func TestGetHealthStatus_DataStale_RemainsUnhealthy(t *testing.T) {
 	}
 
 	if status.DataFresh {
-		t.Error("expected DataFresh = false (20m > 4m)")
+		t.Error("expected DataFresh = false (20m > 2m)")
 	}
 }
 
 func TestGetHealthStatus_DataFresh_ZeroFetchTime(t *testing.T) {
-	config := DefaultConfig()
-
 	d := &Daemon{
-		config:               config,
 		ctx:                  context.Background(),
 		consecutiveErrors:    0,
 		maxConsecutiveErrors: 5,
@@ -334,10 +297,7 @@ func TestGetHealthStatus_DataFresh_ZeroFetchTime(t *testing.T) {
 }
 
 func TestGetHealthStatus_SensorExpired_DegradedFromHealthy(t *testing.T) {
-	config := DefaultConfig()
-
 	d := &Daemon{
-		config:               config,
 		ctx:                  context.Background(),
 		consecutiveErrors:    0,
 		maxConsecutiveErrors: 5,
@@ -362,10 +322,7 @@ func TestGetHealthStatus_SensorExpired_DegradedFromHealthy(t *testing.T) {
 }
 
 func TestGetHealthStatus_SensorExpired_RemainsUnhealthy(t *testing.T) {
-	config := DefaultConfig()
-
 	d := &Daemon{
-		config:               config,
 		ctx:                  context.Background(),
 		consecutiveErrors:    5,
 		maxConsecutiveErrors: 5,
@@ -387,10 +344,7 @@ func TestGetHealthStatus_SensorExpired_RemainsUnhealthy(t *testing.T) {
 }
 
 func TestGetHealthStatus_SensorNotExpired(t *testing.T) {
-	config := DefaultConfig()
-
 	d := &Daemon{
-		config:               config,
 		ctx:                  context.Background(),
 		consecutiveErrors:    0,
 		maxConsecutiveErrors: 5,
@@ -411,10 +365,7 @@ func TestGetHealthStatus_SensorNotExpired(t *testing.T) {
 }
 
 func TestGetHealthStatus_SensorExpiresAt_ZeroValue(t *testing.T) {
-	config := DefaultConfig()
-
 	d := &Daemon{
-		config:               config,
 		ctx:                  context.Background(),
 		consecutiveErrors:    0,
 		maxConsecutiveErrors: 5,

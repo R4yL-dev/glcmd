@@ -28,8 +28,8 @@ func ParseLibreViewTimestamp(timestamp string) (time.Time, error) {
 	}
 
 	// Convert to UTC for consistent storage
-	// Note: time.Parse assumes local timezone by default
-	// We convert to UTC to avoid DST issues and timezone inconsistencies
+	// Note: time.Parse returns UTC when the format has no timezone indicator
+	// The .UTC() call is kept for explicitness
 	return t.UTC(), nil
 }
 

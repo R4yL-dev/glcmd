@@ -6,21 +6,14 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/R4yL-dev/glcmd/internal/daemon"
 	"github.com/R4yL-dev/glcmd/internal/persistence"
 )
 
 // Config holds all application configuration.
 type Config struct {
-	Daemon      DaemonConfig
 	Database    DatabaseConfig
 	API         APIConfig
 	Credentials CredentialsConfig
-}
-
-// DaemonConfig holds daemon configuration.
-type DaemonConfig struct {
-	FetchInterval time.Duration
 }
 
 // DatabaseConfig holds database configuration.
@@ -57,13 +50,6 @@ type CredentialsConfig struct {
 func Load() (*Config, error) {
 	config := &Config{}
 
-	// Load daemon config
-	daemonCfg, err := loadDaemonConfig()
-	if err != nil {
-		return nil, fmt.Errorf("daemon config: %w", err)
-	}
-	config.Daemon = daemonCfg
-
 	// Load database config
 	dbCfg, err := loadDatabaseConfig()
 	if err != nil {
@@ -86,18 +72,6 @@ func Load() (*Config, error) {
 	config.Credentials = credsCfg
 
 	return config, nil
-}
-
-// loadDaemonConfig loads daemon configuration using existing daemon package.
-func loadDaemonConfig() (DaemonConfig, error) {
-	cfg, err := daemon.LoadConfigFromEnv()
-	if err != nil {
-		return DaemonConfig{}, err
-	}
-
-	return DaemonConfig{
-		FetchInterval: cfg.FetchInterval,
-	}, nil
 }
 
 // loadDatabaseConfig loads database configuration with validation.
@@ -180,9 +154,3 @@ func (c *DatabaseConfig) ToPersistenceConfig() *persistence.DatabaseConfig {
 	}
 }
 
-// ToDaemonConfig converts DaemonConfig to daemon.Config for backward compatibility.
-func (c *DaemonConfig) ToDaemonConfig() *daemon.Config {
-	return &daemon.Config{
-		FetchInterval: c.FetchInterval,
-	}
-}

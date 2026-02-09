@@ -229,8 +229,7 @@ Real-time event distribution using a pub/sub pattern.
 ## Recent Changes (v0.7.x)
 
 ### Health & Metrics Enrichment (v0.7.1)
-- Health endpoint: `dataFresh` field indicating data freshness (stale after 2x fetch interval)
-- Health endpoint: `fetchInterval` field showing the configured polling interval
+- Health endpoint: `dataFresh` field indicating data freshness (stale after 2x measurement interval)
 - Health status degrades to `degraded` when data becomes stale
 - Metrics endpoint: `sse` section with enabled status and subscriber count
 - Metrics endpoint: `database` section with connection pool statistics
