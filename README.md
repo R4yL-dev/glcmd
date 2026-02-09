@@ -13,7 +13,7 @@ glcmd is a glucose monitoring toolkit for retrieving and monitoring blood glucos
 ## Features
 
 - Continuous glucose monitoring via LibreView API follower account
-- Daemon mode with automatic polling (default: 5 minutes)
+- Daemon mode with automatic polling (default: 2 minutes)
 - CLI client with Cobra-based subcommands, shell completion, and JSON output
 - Local SQLite database persistence
 - Automatic sensor change detection with unresponsive sensor detection
@@ -51,7 +51,7 @@ export GLCMD_PASSWORD='your_password'
 ### Optional Configuration
 
 Daemon settings:
-- `GLCMD_FETCH_INTERVAL`: Polling interval (default: `5m`)
+- `GLCMD_FETCH_INTERVAL`: Polling interval (default: `2m`)
 - `GLCMD_API_PORT`: HTTP API port (default: `8080`)
 
 Logging settings:
@@ -125,7 +125,7 @@ glcore runs the monitoring daemon. Start it with:
 ```
 
 The daemon:
-- Polls LibreView API every 5 minutes (configurable via `GLCMD_FETCH_INTERVAL`)
+- Polls LibreView API every 2 minutes (configurable via `GLCMD_FETCH_INTERVAL`)
 - Stores measurements in SQLite database
 - Detects sensor changes automatically and tracks unresponsive sensors
 - Imports historical data on first run
@@ -210,7 +210,7 @@ $ curl http://localhost:8080/health | jq
     "lastFetchTime": "2026-01-03T02:31:47Z",
     "databaseConnected": true,
     "dataFresh": true,
-    "fetchInterval": "5m0s"
+    "fetchInterval": "2m0s"
   }
 }
 

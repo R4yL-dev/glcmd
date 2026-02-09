@@ -32,14 +32,14 @@ The daemon (`glcore`) uses authentication, daemon, and database variables. The C
 ### GLCMD_FETCH_INTERVAL
 - **Description**: How often to fetch new glucose data from LibreView API
 - **Format**: Go duration format (e.g., `5m`, `1h`, `90s`)
-- **Default**: `5m` (5 minutes)
+- **Default**: `2m` (2 minutes)
 - **Example**: `GLCMD_FETCH_INTERVAL=3m`
 - **Note**: Minimum recommended: 1 minute (to avoid API rate limiting)
 
 **Usage**:
 ```bash
-# Default: 5 minutes
-GLCMD_FETCH_INTERVAL=5m
+# Default: 2 minutes
+GLCMD_FETCH_INTERVAL=2m
 
 # More frequent: 2 minutes
 GLCMD_FETCH_INTERVAL=2m
@@ -231,7 +231,7 @@ GLCMD_LOG_LEVEL=debug
 GLCMD_LOG_FORMAT=text
 
 # Application
-GLCMD_FETCH_INTERVAL=5m
+GLCMD_FETCH_INTERVAL=2m
 GLCMD_API_PORT=8080
 ```
 
@@ -253,7 +253,7 @@ GLCMD_LOG_LEVEL=info
 GLCMD_LOG_FORMAT=text
 
 # Application
-GLCMD_FETCH_INTERVAL=5m
+GLCMD_FETCH_INTERVAL=2m
 GLCMD_API_PORT=8080
 ```
 
@@ -279,7 +279,7 @@ services:
       GLCMD_LOG_FORMAT: json
 
       # Application
-      GLCMD_FETCH_INTERVAL: 5m
+      GLCMD_FETCH_INTERVAL: 2m
       GLCMD_API_PORT: 8080
     volumes:
       - glcmd_data:/data
@@ -318,7 +318,7 @@ GLCMD_DB_PATH=./data/glcmd.db
 GLCMD_DB_LOG_LEVEL=info
 GLCMD_LOG_LEVEL=info
 GLCMD_LOG_FORMAT=text
-GLCMD_FETCH_INTERVAL=5m
+GLCMD_FETCH_INTERVAL=2m
 GLCMD_API_PORT=8080
 ```
 
@@ -342,7 +342,7 @@ Environment="GLCMD_DB_PATH=/var/lib/glcmd/glcmd.db"
 Environment="GLCMD_DB_LOG_LEVEL=warn"
 Environment="GLCMD_LOG_LEVEL=info"
 Environment="GLCMD_LOG_FORMAT=text"
-Environment="GLCMD_FETCH_INTERVAL=5m"
+Environment="GLCMD_FETCH_INTERVAL=2m"
 Environment="GLCMD_API_PORT=8080"
 
 ExecStart=/opt/glcmd/glcore
@@ -459,7 +459,7 @@ If these variables are set, they will be ignored.
 |----------|---------|------|
 | GLCMD_EMAIL | (required) | string |
 | GLCMD_PASSWORD | (required) | string |
-| GLCMD_FETCH_INTERVAL | `5m` | duration |
+| GLCMD_FETCH_INTERVAL | `2m` | duration |
 | GLCMD_API_PORT | `8080` | int |
 | GLCMD_API_URL | `http://localhost:8080` | string |
 | GLCMD_LOG_FORMAT | `text` | string |

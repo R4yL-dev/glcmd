@@ -6,7 +6,7 @@
 
 ## Overview
 
-glcmd is a LibreView glucose monitoring toolkit built with a clean, layered architecture designed for maintainability and future scalability. It consists of two binaries: **glcore** (daemon) and **glcli** (CLI client). The daemon polls the LibreView API every 5 minutes and persists glucose measurements, sensor configurations, and user preferences to a SQLite database. The CLI client queries the daemon's HTTP API.
+glcmd is a LibreView glucose monitoring toolkit built with a clean, layered architecture designed for maintainability and future scalability. It consists of two binaries: **glcore** (daemon) and **glcli** (CLI client). The daemon polls the LibreView API every 2 minutes and persists glucose measurements, sensor configurations, and user preferences to a SQLite database. The CLI client queries the daemon's HTTP API.
 
 ## Architecture Layers
 
@@ -146,7 +146,7 @@ Business logic and transaction orchestration.
 Orchestrates API polling and data persistence.
 
 **Responsibilities**:
-- Polls LibreView API every 5 minutes (configurable)
+- Polls LibreView API every 2 minutes (configurable)
 - Authenticates with LibreView (handles token expiration)
 - Transforms API responses to domain models
 - Delegates persistence to services
