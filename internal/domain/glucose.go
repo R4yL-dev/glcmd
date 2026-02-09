@@ -43,8 +43,8 @@ type GlucoseMeasurement struct {
 	CreatedAt time.Time `gorm:"type:datetime;not null;default:CURRENT_TIMESTAMP" json:"createdAt"`
 
 	// Timestamps
-	FactoryTimestamp time.Time `gorm:"type:datetime;not null;index:idx_factory_ts" json:"factoryTimestamp"` // Timestamp from the sensor (factory time)
-	Timestamp        time.Time `gorm:"type:datetime;not null;uniqueIndex:idx_unique_timestamp;index:idx_timestamp" json:"timestamp"` // Real timestamp (phone time), stored in UTC
+	FactoryTimestamp time.Time `gorm:"type:datetime;not null;uniqueIndex:idx_unique_factory_ts" json:"factoryTimestamp"` // Timestamp from the sensor (factory time), used for deduplication
+	Timestamp        time.Time `gorm:"type:datetime;not null;index:idx_timestamp" json:"timestamp"` // Real timestamp (phone time), stored in UTC
 
 	// Glucose values
 	Value          float64 `gorm:"type:decimal(10,2);not null" json:"value"`          // Glucose value in mmol/L

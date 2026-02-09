@@ -13,10 +13,12 @@ func TestGlucoseRepository_Save(t *testing.T) {
 	db := setupTestDB(t)
 	repo := NewGlucoseRepository(db)
 
+	now := time.Now().UTC()
 	measurement := &domain.GlucoseMeasurement{
-		Timestamp:      time.Now().UTC(),
-		Value:          5.5,
-		ValueInMgPerDl: 99,
+		FactoryTimestamp: now,
+		Timestamp:        now,
+		Value:            5.5,
+		ValueInMgPerDl:   99,
 	}
 
 	_, err := repo.Save(context.Background(), measurement)
@@ -35,22 +37,24 @@ func TestGlucoseRepository_Save(t *testing.T) {
 	}
 }
 
-func TestGlucoseRepository_Save_DuplicateTimestamp(t *testing.T) {
+func TestGlucoseRepository_Save_DuplicateFactoryTimestamp(t *testing.T) {
 	db := setupTestDB(t)
 	repo := NewGlucoseRepository(db)
 
-	timestamp := time.Now().UTC()
+	factoryTS := time.Now().UTC()
 
 	m1 := &domain.GlucoseMeasurement{
-		Timestamp:      timestamp,
-		Value:          5.5,
-		ValueInMgPerDl: 99,
+		FactoryTimestamp: factoryTS,
+		Timestamp:        factoryTS,
+		Value:            5.5,
+		ValueInMgPerDl:   99,
 	}
 
 	m2 := &domain.GlucoseMeasurement{
-		Timestamp:      timestamp, // Same timestamp!
-		Value:          6.0,       // Different value
-		ValueInMgPerDl: 108,
+		FactoryTimestamp: factoryTS,              // Same factory timestamp!
+		Timestamp:        factoryTS.Add(time.Second), // Different timestamp
+		Value:            6.0,                    // Different value
+		ValueInMgPerDl:   108,
 	}
 
 	// Save first measurement
@@ -94,9 +98,9 @@ func TestGlucoseRepository_FindLatest(t *testing.T) {
 	now := time.Now().UTC()
 
 	measurements := []*domain.GlucoseMeasurement{
-		{Timestamp: now.Add(-2 * time.Hour), Value: 4.0, ValueInMgPerDl: 72},
-		{Timestamp: now.Add(-1 * time.Hour), Value: 5.0, ValueInMgPerDl: 90},
-		{Timestamp: now, Value: 6.0, ValueInMgPerDl: 108}, // Latest
+		{FactoryTimestamp: now.Add(-2 * time.Hour), Timestamp: now.Add(-2 * time.Hour), Value: 4.0, ValueInMgPerDl: 72},
+		{FactoryTimestamp: now.Add(-1 * time.Hour), Timestamp: now.Add(-1 * time.Hour), Value: 5.0, ValueInMgPerDl: 90},
+		{FactoryTimestamp: now, Timestamp: now, Value: 6.0, ValueInMgPerDl: 108}, // Latest
 	}
 
 	for _, m := range measurements {
@@ -132,11 +136,11 @@ func TestGlucoseRepository_FindByTimeRange(t *testing.T) {
 	now := time.Now().UTC()
 
 	measurements := []*domain.GlucoseMeasurement{
-		{Timestamp: now.Add(-3 * time.Hour), Value: 4.0, ValueInMgPerDl: 72}, // Outside range
-		{Timestamp: now.Add(-2 * time.Hour), Value: 5.0, ValueInMgPerDl: 90}, // In range
-		{Timestamp: now.Add(-1 * time.Hour), Value: 6.0, ValueInMgPerDl: 108}, // In range
-		{Timestamp: now, Value: 7.0, ValueInMgPerDl: 126},                     // In range
-		{Timestamp: now.Add(1 * time.Hour), Value: 8.0, ValueInMgPerDl: 144},  // Outside range
+		{FactoryTimestamp: now.Add(-3 * time.Hour), Timestamp: now.Add(-3 * time.Hour), Value: 4.0, ValueInMgPerDl: 72}, // Outside range
+		{FactoryTimestamp: now.Add(-2 * time.Hour), Timestamp: now.Add(-2 * time.Hour), Value: 5.0, ValueInMgPerDl: 90}, // In range
+		{FactoryTimestamp: now.Add(-1 * time.Hour), Timestamp: now.Add(-1 * time.Hour), Value: 6.0, ValueInMgPerDl: 108}, // In range
+		{FactoryTimestamp: now, Timestamp: now, Value: 7.0, ValueInMgPerDl: 126},                     // In range
+		{FactoryTimestamp: now.Add(1 * time.Hour), Timestamp: now.Add(1 * time.Hour), Value: 8.0, ValueInMgPerDl: 144},  // Outside range
 	}
 
 	for _, m := range measurements {
@@ -174,9 +178,10 @@ func TestGlucoseRepository_FindByTimeRange_EmptyRange(t *testing.T) {
 
 	// Save a measurement
 	m := &domain.GlucoseMeasurement{
-		Timestamp:      now,
-		Value:          5.5,
-		ValueInMgPerDl: 99,
+		FactoryTimestamp: now,
+		Timestamp:        now,
+		Value:            5.5,
+		ValueInMgPerDl:   99,
 	}
 	if _, err := repo.Save(context.Background(), m); err != nil {
 		t.Fatalf("failed to save: %v", err)

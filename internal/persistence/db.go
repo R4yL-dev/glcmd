@@ -80,9 +80,12 @@ func NewDatabase(config *DatabaseConfig) (*Database, error) {
 }
 
 // AutoMigrate runs automatic migration for all GORM models.
-// This will be called with the GORM models once they are created.
+// It also handles dropping legacy indexes that have been replaced.
 func (d *Database) AutoMigrate(models ...interface{}) error {
 	slog.Info("running database migrations", "type", d.config.Type)
+
+	// Drop legacy indexes before AutoMigrate (which cannot remove old indexes)
+	d.dropLegacyIndexes()
 
 	if err := d.db.AutoMigrate(models...); err != nil {
 		return fmt.Errorf("failed to run migrations: %w", err)
@@ -90,6 +93,31 @@ func (d *Database) AutoMigrate(models ...interface{}) error {
 
 	slog.Info("database migrations completed successfully")
 	return nil
+}
+
+// dropLegacyIndexes removes old indexes that have been replaced.
+// Errors are logged but not fatal (index may not exist on new databases).
+func (d *Database) dropLegacyIndexes() {
+	migrator := d.db.Migrator()
+
+	// idx_unique_timestamp replaced by idx_unique_factory_ts (dedup key moved to factory_timestamp)
+	legacyIndexes := []struct {
+		table string
+		index string
+	}{
+		{"glucose_measurements", "idx_unique_timestamp"},
+		{"glucose_measurements", "idx_factory_ts"},
+	}
+
+	for _, li := range legacyIndexes {
+		if migrator.HasIndex(li.table, li.index) {
+			if err := migrator.DropIndex(li.table, li.index); err != nil {
+				slog.Warn("failed to drop legacy index", "table", li.table, "index", li.index, "error", err)
+			} else {
+				slog.Info("dropped legacy index", "table", li.table, "index", li.index)
+			}
+		}
+	}
 }
 
 // DB returns the underlying GORM database instance.

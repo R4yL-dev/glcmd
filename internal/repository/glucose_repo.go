@@ -27,9 +27,9 @@ func NewGlucoseRepository(db *gorm.DB) *GlucoseRepositoryGORM {
 func (r *GlucoseRepositoryGORM) Save(ctx context.Context, m *domain.GlucoseMeasurement) (bool, error) {
 	db := txOrDefault(ctx, r.db)
 
-	// ON CONFLICT DO NOTHING - ignore duplicates based on unique timestamp
+	// ON CONFLICT DO NOTHING - ignore duplicates based on unique factory_timestamp
 	result := db.Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "timestamp"}},
+		Columns:   []clause.Column{{Name: "factory_timestamp"}},
 		DoNothing: true,
 	}).Create(m)
 

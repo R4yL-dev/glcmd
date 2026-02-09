@@ -113,8 +113,10 @@ func TestE2E_SaveAndGetMeasurement(t *testing.T) {
 	server, db := setupE2ETest(t)
 
 	// Insert test measurement
+	now := time.Now().UTC()
 	measurement := &domain.GlucoseMeasurement{
-		Timestamp:        time.Now().UTC(),
+		FactoryTimestamp: now,
+		Timestamp:        now,
 		Value:            5.5,
 		ValueInMgPerDl:   99,
 		GlucoseColor: domain.GlucoseColorNormal,
@@ -156,8 +158,10 @@ func TestE2E_GetMeasurements_WithPagination(t *testing.T) {
 
 	// Insert 5 test measurements
 	for i := 0; i < 5; i++ {
+		ts := time.Now().UTC().Add(time.Duration(-i) * time.Hour)
 		measurement := &domain.GlucoseMeasurement{
-			Timestamp:        time.Now().UTC().Add(time.Duration(-i) * time.Hour),
+			FactoryTimestamp: ts,
+			Timestamp:        ts,
 			Value:            5.0 + float64(i)*0.1,
 			ValueInMgPerDl:   90 + i,
 			GlucoseColor: domain.GlucoseColorNormal,
@@ -235,9 +239,9 @@ func TestE2E_GetStatistics_WithData(t *testing.T) {
 	// Insert measurements with different colors (use UTC time)
 	now := time.Now().UTC()
 	measurements := []*domain.GlucoseMeasurement{
-		{Timestamp: now.Add(-3 * time.Hour), Value: 5.0, ValueInMgPerDl: 90, GlucoseColor: domain.GlucoseColorNormal, Type: domain.GlucoseTypeCurrent},
-		{Timestamp: now.Add(-2 * time.Hour), Value: 8.5, ValueInMgPerDl: 153, GlucoseColor: domain.GlucoseColorWarning, IsHigh: true, Type: domain.GlucoseTypeCurrent},
-		{Timestamp: now.Add(-1 * time.Hour), Value: 5.2, ValueInMgPerDl: 94, GlucoseColor: domain.GlucoseColorNormal, Type: domain.GlucoseTypeCurrent},
+		{FactoryTimestamp: now.Add(-3 * time.Hour), Timestamp: now.Add(-3 * time.Hour), Value: 5.0, ValueInMgPerDl: 90, GlucoseColor: domain.GlucoseColorNormal, Type: domain.GlucoseTypeCurrent},
+		{FactoryTimestamp: now.Add(-2 * time.Hour), Timestamp: now.Add(-2 * time.Hour), Value: 8.5, ValueInMgPerDl: 153, GlucoseColor: domain.GlucoseColorWarning, IsHigh: true, Type: domain.GlucoseTypeCurrent},
+		{FactoryTimestamp: now.Add(-1 * time.Hour), Timestamp: now.Add(-1 * time.Hour), Value: 5.2, ValueInMgPerDl: 94, GlucoseColor: domain.GlucoseColorNormal, Type: domain.GlucoseTypeCurrent},
 	}
 	for _, m := range measurements {
 		if err := db.Create(m).Error; err != nil {
@@ -332,6 +336,7 @@ func TestE2E_GetStatistics_AllTime(t *testing.T) {
 
 	// Insert test measurement
 	measurement := &domain.GlucoseMeasurement{
+		FactoryTimestamp: now.Add(-1 * time.Hour),
 		Timestamp:        now.Add(-1 * time.Hour),
 		Value:            7.0,
 		ValueInMgPerDl:   126,

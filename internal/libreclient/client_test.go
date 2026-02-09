@@ -130,6 +130,7 @@ func TestGetConnections_Success(t *testing.T) {
 				TrendMessage     string  `json:"TrendMessage"`
 				MeasurementColor int     `json:"MeasurementColor"`
 				GlucoseUnits     int     `json:"GlucoseUnits"`
+				FactoryTimestamp string  `json:"FactoryTimestamp"`
 				Timestamp        string  `json:"Timestamp"`
 				IsHigh           bool    `json:"isHigh"`
 				IsLow            bool    `json:"isLow"`
