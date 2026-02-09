@@ -2,7 +2,7 @@
 // glucose data from the LibreView API at regular intervals.
 //
 // The daemon runs a main loop that:
-//   - Fetches data every 5 minutes using a ticker
+//   - Fetches data every 2 minutes using a ticker
 //   - Stores all received data in the configured storage backend
 //   - Handles graceful shutdown via context cancellation
 //   - Logs all operations and errors
@@ -340,7 +340,7 @@ func (d *Daemon) initialFetch() error {
 }
 
 // fetch retrieves the latest glucose data from /connections.
-// Used for periodic updates (every 5 minutes).
+// Used for periodic updates (every 2 minutes).
 // If authentication fails (401), automatically re-authenticates with retry logic.
 func (d *Daemon) fetch() error {
 	ctx, cancel := context.WithTimeout(d.ctx, 30*time.Second)

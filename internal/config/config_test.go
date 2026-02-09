@@ -21,8 +21,8 @@ func TestLoad_Success(t *testing.T) {
 	}
 
 	// Verify daemon defaults
-	if cfg.Daemon.FetchInterval != 5*time.Minute {
-		t.Errorf("expected FetchInterval 5m, got %v", cfg.Daemon.FetchInterval)
+	if cfg.Daemon.FetchInterval != 2*time.Minute {
+		t.Errorf("expected FetchInterval 2m, got %v", cfg.Daemon.FetchInterval)
 	}
 
 	// Verify database defaults (SQLite)

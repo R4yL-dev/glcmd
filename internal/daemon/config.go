@@ -8,13 +8,13 @@ import (
 
 // Config holds daemon configuration.
 type Config struct {
-	FetchInterval time.Duration // Interval between API fetches (default: 5m)
+	FetchInterval time.Duration // Interval between API fetches (default: 2m)
 }
 
 // DefaultConfig returns default daemon configuration.
 func DefaultConfig() *Config {
 	return &Config{
-		FetchInterval: 5 * time.Minute,
+		FetchInterval: 2 * time.Minute,
 	}
 }
 

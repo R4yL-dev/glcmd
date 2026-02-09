@@ -69,7 +69,7 @@ type GraphResponse struct {
 
 // GetConnections retrieves the current glucose measurement and patient information.
 //
-// This endpoint is used for periodic updates (every 5 minutes).
+// This endpoint is used for periodic updates (every 2 minutes).
 func (c *Client) GetConnections(ctx context.Context, token, accountID string) (*ConnectionsResponse, error) {
 	var result ConnectionsResponse
 	if err := c.doRequest(ctx, "GET", "/llu/connections", nil, &result, token, accountID); err != nil {

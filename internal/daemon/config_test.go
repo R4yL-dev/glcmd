@@ -9,8 +9,8 @@ import (
 func TestDefaultConfig(t *testing.T) {
 	config := DefaultConfig()
 
-	if config.FetchInterval != 5*time.Minute {
-		t.Errorf("expected FetchInterval = 5m, got %v", config.FetchInterval)
+	if config.FetchInterval != 2*time.Minute {
+		t.Errorf("expected FetchInterval = 2m, got %v", config.FetchInterval)
 	}
 }
 
@@ -24,8 +24,8 @@ func TestLoadConfigFromEnv_Defaults(t *testing.T) {
 	}
 
 	// Should use defaults
-	if config.FetchInterval != 5*time.Minute {
-		t.Errorf("expected default FetchInterval = 5m, got %v", config.FetchInterval)
+	if config.FetchInterval != 2*time.Minute {
+		t.Errorf("expected default FetchInterval = 2m, got %v", config.FetchInterval)
 	}
 }
 

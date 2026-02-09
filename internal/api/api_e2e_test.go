@@ -72,7 +72,7 @@ func setupE2ETest(t *testing.T) (http.Handler, *gorm.DB) {
 				LastFetchTime:     time.Now(),
 				DatabaseConnected: true,
 				DataFresh:         true,
-				FetchInterval:     "5m0s",
+				FetchInterval:     "2m0s",
 			}
 		},
 		func() bool { return true },
@@ -517,8 +517,8 @@ func TestE2E_Health(t *testing.T) {
 		t.Error("expected DataFresh = true")
 	}
 
-	if response.Data.FetchInterval != "5m0s" {
-		t.Errorf("expected FetchInterval = 5m0s, got %s", response.Data.FetchInterval)
+	if response.Data.FetchInterval != "2m0s" {
+		t.Errorf("expected FetchInterval = 2m0s, got %s", response.Data.FetchInterval)
 	}
 }
 
